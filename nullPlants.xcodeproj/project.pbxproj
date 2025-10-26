@@ -192,6 +192,7 @@
 			knownRegions = (
 				en,
 				Base,
+				it,
 			);
 			mainGroup = 513967442EA51A550085FBB0;
 			minimizedProjectReferenceProxies = 1;
@@ -400,6 +401,9 @@
 				DEVELOPMENT_TEAM = YN7CAKC22B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = foto;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = foto;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = foto;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +436,9 @@
 				DEVELOPMENT_TEAM = YN7CAKC22B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = foto;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = foto;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = foto;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
