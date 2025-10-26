@@ -56,15 +56,19 @@ struct PlantDetailView: View {
                     Text(plant.type)
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                    Text("Età: \(formattedAge(from: plant.datePlanted)) • Seminata il \(plant.datePlanted.formatted(date: .abbreviated, time: .omitted))")
+                    Text("Età: \(formattedAge(from: plant.datePlanted))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding(.top, 2)
+                    Text("Seminata il \(plant.datePlanted.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 .padding([.horizontal, .top])
             }
 
             Form {
+                /*
                 Section(header: Text("Info")) {
                     if isEditing {
                         TextField("Nome", text: $editedName)
@@ -74,6 +78,7 @@ struct PlantDetailView: View {
                         EmptyView()
                     }
                 }
+                */
                 
                 Section(header: Text("Annaffiature")) {
                     Button("Registra annaffiatura di oggi") {
@@ -443,3 +448,4 @@ struct InlineCameraView: UIViewControllerRepresentable {
     let plant = Plant(name: "Basilico", type: "Aromatiche", datePlanted: Date(), wateringLog: [], photoLog: [])
     PlantDetailView(plant: .constant(plant), store: store)
 }
+
