@@ -1,50 +1,74 @@
 import SwiftUI
 
 /// A generic photo gallery view displaying photo thumbnails in a grid.
-/// The generic `Item` must be Identifiable and have properties `imageFilename` and `date`.
+/// Provide closures to extract filename and date from your item type.
 struct PhotoGalleryView<Item: Identifiable>: View {
-    
     let photos: [Item]
-    let imageFilenameKeyPath: KeyPath<Item, String>
-    let dateKeyPath: KeyPath<Item, Date>
+    let filename: (Item) -> String
+    let date: (Item) -> Date
     let onSelect: (Item) -> Void
     let onClose: () -> Void
-    
-    private let columns: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
-    
-    /// Initialize the view
-    /// - Parameters:
-    ///   - photos: The array of photo items to display
-    ///   - imageFilename: KeyPath to the image filename property on the item (default \.imageFilename)
-    ///   - date: KeyPath to the date property on the item (default \.date)
-    ///   - onSelect: Closure called when a photo is tapped
-    ///   - onClose: Closure called when the Close button is tapped
+    let onDelete: (Item) -> Void
+
+    // Three equal columns with fixed spacing
+    private let columns: [GridItem] = Array(repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 8, alignment: .center), count: 3)
+
     init(
         photos: [Item],
-        imageFilename: KeyPath<Item, String> = \Item.imageFilename,
-        date: KeyPath<Item, Date> = \Item.date,
+        filename: @escaping (Item) -> String,
+        date: @escaping (Item) -> Date,
         onSelect: @escaping (Item) -> Void,
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        onDelete: @escaping (Item) -> Void = { _ in }
     ) {
         self.photos = photos
-        self.imageFilenameKeyPath = imageFilename
-        self.dateKeyPath = date
+        self.filename = filename
+        self.date = date
         self.onSelect = onSelect
         self.onClose = onClose
+        self.onDelete = onDelete
     }
-    
+
+    @State private var pendingDeletion: Item? = nil
+    @State private var showDeleteConfirm: Bool = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(photos.sorted(by: { $0[keyPath: dateKeyPath] > $1[keyPath: dateKeyPath] })) { photo in
-                        ThumbnailView(imageFilename: photo[keyPath: imageFilenameKeyPath])
-                            .aspectRatio(1, contentMode: .fill)
-                            .clipped()
-                            .cornerRadius(8)
-                            .onTapGesture {
-                                onSelect(photo)
+                    ForEach(photos.sorted(by: { date($0) > date($1) })) { photo in
+                        GeometryReader { geo in
+                            let side = geo.size.width
+                            Button(action: {
+                                onClose()
+                                DispatchQueue.main.async {
+                                    onSelect(photo)
+                                }
+                            }) {
+                                ZStack(alignment: .bottomLeading) {
+                                    ThumbnailView(imageFilename: filename(photo))
+                                        .frame(width: side, height: side)
+                                        .clipped()
+
+                                    // Date badge
+                                    Text(date(photo).formatted(date: .abbreviated, time: .omitted))
+                                        .font(.caption2)
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(.ultraThinMaterial, in: Capsule())
+                                        .padding(6)
+                                }
+                                .contentShape(Rectangle())
+                                .cornerRadius(8)
+                                .onLongPressGesture(minimumDuration: 0.5) {
+                                    pendingDeletion = photo
+                                    showDeleteConfirm = true
+                                }
                             }
+                            .buttonStyle(.plain)
+                        }
+                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
                 .padding()
@@ -52,25 +76,41 @@ struct PhotoGalleryView<Item: Identifiable>: View {
             .navigationTitle("Photos")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        onClose()
-                    }
+                    Button("Close") { onClose() }
                 }
             }
+        }
+        .confirmationDialog(
+            "Eliminare questa foto?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Elimina", role: .destructive) {
+                if let item = pendingDeletion {
+                    onDelete(item)
+                }
+                pendingDeletion = nil
+            }
+            Button("Annulla", role: .cancel) {
+                pendingDeletion = nil
+            }
+        } message: {
+            Text("Questa azione non può essere annullata.")
         }
     }
 }
 
 /// A view for displaying a square thumbnail from a filename.
-/// Uses ImageStorage.loadImage(filename:) to load the UIImage.
+/// Uses ImageStorage.loadImage(_:) to load the UIImage.
 private struct ThumbnailView: View {
     let imageFilename: String
-    
+
     var body: some View {
-        if let uiImage = ImageStorage.loadImage(filename: imageFilename) {
+        if let uiImage = ImageStorage.loadImage(imageFilename) {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFill()
+                .clipped()
         } else {
             Rectangle()
                 .fill(Color.gray.opacity(0.3))

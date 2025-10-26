@@ -11,12 +11,16 @@ struct PlantDetailView: View {
     @State private var showingWaterInput = false
     @State private var waterLitersText: String = ""
     @State private var showingWaterLogSheet = false
+    @State private var showingPhotoGallery = false
     @State private var selectedPhotoFilename: String? = nil
     @State private var selectedUIImage: UIImage? = nil
     @State private var showingPhotoFullScreen = false
     @State private var showingShareSheet = false
     @State private var showingDeletePhotoAlert = false
     @State private var photoToDeleteFilename: String? = nil
+
+    @State private var showingDeleteWaterAlert = false
+    @State private var pendingWaterDeleteDate: Date? = nil
     
     @State private var timelapseSpeed: Double = 1.0 // 1x by default
 
@@ -24,6 +28,10 @@ struct PlantDetailView: View {
     @State private var editedName: String = ""
     @State private var editedType: String = ""
     @State private var editedDatePlanted: Date = Date()
+    
+    private var sortedWaterings: [WateringEvent] {
+        plant.wateringLog.sorted { $0.date > $1.date }
+    }
     
     // MARK: - Age formatting helper
     private func formattedAge(from startDate: Date, to endDate: Date = Date()) -> String {
@@ -47,7 +55,67 @@ struct PlantDetailView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
+            // Hero photo: latest plant photo
+            if let latest = plant.photoLog.sorted(by: { $0.date > $1.date }).first,
+               let heroImage = ImageStorage.loadImage(latest.imageFilename) {
+                ZStack(alignment: .bottomLeading) {
+                    Image(uiImage: heroImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 220)
+                        .clipped()
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedPhotoFilename = latest.imageFilename
+                            selectedUIImage = heroImage
+                            showingPhotoFullScreen = true
+                        }
+
+                    // Gradient overlay for text legibility
+                    LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 80)
+                        .frame(maxWidth: .infinity, alignment: .bottom)
+                        .allowsHitTesting(false)
+
+                    // Caption with date
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(latest.date.formatted(date: .abbreviated, time: .omitted))
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding([.leading, .bottom], 12)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal)
+            } else {
+                ZStack {
+                    // Placeholder background
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.thinMaterial)
+                        .frame(height: 220)
+
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text("Scatta la prima foto")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+                    .padding()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showingPhoto = true
+                }
+                .padding(.horizontal)
+            }
+
             if !isEditing {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(plant.name)
@@ -67,118 +135,193 @@ struct PlantDetailView: View {
                 .padding([.horizontal, .top])
             }
 
-            Form {
-                /*
-                Section(header: Text("Info")) {
-                    if isEditing {
-                        TextField("Nome", text: $editedName)
-                        TextField("Tipologia", text: $editedType)
-                        DatePicker("Data di semina", selection: $editedDatePlanted, displayedComponents: .date)
-                    } else {
-                        EmptyView()
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Azioni")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+
+                // Azioni principali
+                VStack(spacing: 12) {
+                    Button {
+                        showingPhoto = true
+                    } label: {
+                        Label("Scatta foto", systemImage: "camera.fill")
+                            .frame(maxWidth: .infinity)
                     }
-                }
-                */
-                
-                Section(header: Text("Annaffiature")) {
-                    Button("Registra annaffiatura di oggi") {
+                    .buttonStyle(.borderedProminent)
+
+                    Button {
                         if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
                             showingWaterInput = true
                         } else {
                             showAlert = true
                         }
+                    } label: {
+                        Label("Registra annaffiatura", systemImage: "drop.fill")
+                            .frame(maxWidth: .infinity)
                     }
-                    .alert("Annaffiatura già registrata per oggi", isPresented: $showAlert) {
-                        Button("OK", role: .cancel) {}
-                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
                     .disabled(plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }))
-                    Button("Log annaffiature") {
+                }
+                .padding(.horizontal)
+
+                // Link secondari
+                VStack(spacing: 8) {
+                    Button {
+                        showingPhotoGallery = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "square.grid.3x3.fill")
+                                .foregroundStyle(.secondary)
+                            Text("Log foto")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+
+                    Button {
                         showingWaterLogSheet = true
-                    }
-                    .sheet(isPresented: $showingWaterLogSheet) {
-                        NavigationView {
-                            List {
-                                ForEach(plant.wateringLog.sorted(by: { $0.date > $1.date })) { event in
-                                    HStack {
-                                        Image(systemName: "drop.fill").foregroundStyle(.blue)
-                                        let dateText = event.date.formatted(date: .abbreviated, time: .omitted)
-                                        if let liters = event.liters {
-                                            Text("\(dateText) (\(String(format: "%.2f", liters)) L)")
-                                        } else {
-                                            Text(dateText)
-                                        }
-                                    }
-                                }
-                                .onDelete { indexSet in
-                                    let sorted = plant.wateringLog.sorted(by: { $0.date > $1.date })
-                                    var base = plant.wateringLog
-                                    for index in indexSet {
-                                        let toRemove = sorted[index]
-                                        if let origIndex = base.firstIndex(where: { $0.id == toRemove.id }) {
-                                            base.remove(at: origIndex)
-                                        }
-                                    }
-                                    plant.wateringLog = base
-                                    store.updatePlant(plant)
-                                }
-                            }
-                            .navigationTitle("Log annaffiature")
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("Chiudi") { showingWaterLogSheet = false }
-                                }
-                            }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "list.bullet")
+                                .foregroundStyle(.secondary)
+                            Text("Log annaffiature")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.tertiary)
                         }
-                    }
-                    .sheet(isPresented: $showingWaterInput) {
-                        WaterAmountInputSheet(waterLitersText: $waterLitersText) {
-                            // Conferma: registra annaffiatura (litri opzionali)
-                            let liters: Double? = Double(waterLitersText.replacingOccurrences(of: ",", with: "."))
-                            plant.wateringLog.append(WateringEvent(date: Date(), liters: liters))
-                            store.updatePlant(plant)
-                            waterLitersText = ""
-                            showingWaterInput = false
-                        } onCancel: {
-                            showingWaterInput = false
-                            waterLitersText = ""
-                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
-                
-                Section(header: Text("Storico foto")) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(plant.photoLog.sorted(by: { $0.date > $1.date })) { photo in
-                                Button {
-                                    selectedPhotoFilename = photo.imageFilename
-                                    selectedUIImage = ImageStorage.loadImage(photo.imageFilename)
-                                    // Apri sempre la fullscreen: FullScreenPhotoView gestirà il lazy load se necessario
-                                    showingPhotoFullScreen = true
-                                } label: {
-                                    PlantPhotoThumbnail(filename: photo.imageFilename)
-                                }
-                                .simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in
-                                    photoToDeleteFilename = photo.imageFilename
-                                    showingDeletePhotoAlert = true
-                                })
-                            }
-                        }
-                    }
-                    Button("Aggiungi foto di oggi") {
-                        showingPhoto = true
-                    }
-                    Button("Timelapse", systemImage: "play.rectangle") {
-                        showingTimelapse = true
-                    }
-                }
+                .padding(.horizontal)
             }
+            .padding(.vertical, 12)
+
+            Spacer(minLength: 0)
+
+            // Bottom Timelapse button
+            VStack(spacing: 8) {
+                Button {
+                    showingTimelapse = true
+                } label: {
+                    Label("Timelapse", systemImage: "film")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.purple)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial)
         }
         .navigationTitle(isEditing ? "Modifica" : plant.name)
         .sheet(isPresented: $showingPhoto) {
             PhotoCaptureView(plant: $plant, store: store)
         }
+        .sheet(isPresented: $showingWaterInput) {
+            WaterAmountInputSheet(
+                waterLitersText: $waterLitersText,
+                onConfirm: {
+                    let trimmed = waterLitersText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let liters: Double?
+                    if trimmed.isEmpty {
+                        liters = nil
+                    } else {
+                        let formatter = NumberFormatter()
+                        formatter.locale = Locale.current
+                        formatter.decimalSeparator = Locale.current.decimalSeparator
+                        if let number = formatter.number(from: trimmed) {
+                            liters = number.doubleValue
+                        } else if let val = Double(trimmed.replacingOccurrences(of: ",", with: ".")) {
+                            liters = val
+                        } else {
+                            liters = nil
+                        }
+                    }
+
+                    // Prevent duplicate watering for today
+                    if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
+                        let entry = WateringEvent(date: Date(), liters: liters)
+                        plant.wateringLog.append(entry)
+                        // Keep log sorted newest first (optional)
+                        plant.wateringLog.sort { $0.date > $1.date }
+                        store.updatePlant(plant)
+                    }
+                    waterLitersText = ""
+                    showingWaterInput = false
+                },
+                onCancel: {
+                    waterLitersText = ""
+                    showingWaterInput = false
+                }
+            )
+        }
+        .sheet(isPresented: $showingWaterLogSheet) {
+            NavigationStack {
+                List {
+                    ForEach(sortedWaterings, id: \.date) { entry in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(entry.date.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.body)
+                                if let liters = entry.liters {
+                                    Text(String(format: "%.2f L", liters))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                    .onDelete { indexSet in
+                        let dates = indexSet.map { sortedWaterings[$0].date }
+                        plant.wateringLog.removeAll { entry in dates.contains(entry.date) }
+                        store.updatePlant(plant)
+                    }
+                }
+                .navigationTitle("Log annaffiature")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Chiudi") { showingWaterLogSheet = false } } }
+            }
+            .alert("Eliminare questa annaffiatura?", isPresented: $showingDeleteWaterAlert) {
+                Button("Elimina", role: .destructive) {
+                    if let date = pendingWaterDeleteDate {
+                        plant.wateringLog.removeAll { $0.date == date }
+                        store.updatePlant(plant)
+                    }
+                    pendingWaterDeleteDate = nil
+                }
+                Button("Annulla", role: .cancel) {
+                    pendingWaterDeleteDate = nil
+                }
+            } message: {
+                Text("Questa azione non può essere annullata.")
+            }
+        }
         .sheet(isPresented: $showingTimelapse) {
             timelapseSheet()
+        }
+        .sheet(isPresented: $showingPhotoGallery) {
+            PhotoGalleryView(
+                photos: plant.photoLog,
+                filename: { $0.imageFilename },
+                date: { $0.date },
+                onSelect: { photo in
+                    selectedPhotoFilename = photo.imageFilename
+                    selectedUIImage = ImageStorage.loadImage(photo.imageFilename)
+                    showingPhotoFullScreen = true
+                },
+                onClose: {
+                    showingPhotoGallery = false
+                }
+            )
         }
         .fullScreenCover(isPresented: $showingPhotoFullScreen) {
             fullScreenContent()
@@ -237,8 +380,8 @@ struct PlantDetailView: View {
     
     @ViewBuilder
     private func fullScreenContent() -> some View {
+        let selectedDate = selectedPhotoFilename.flatMap { name in plant.photoLog.first { $0.imageFilename == name }?.date }
         if selectedPhotoFilename != nil || selectedUIImage != nil {
-            let selectedDate = plant.photoLog.first { $0.imageFilename == selectedPhotoFilename }?.date
             FullScreenPhotoView(
                 filename: selectedPhotoFilename,
                 initialImage: selectedUIImage,
@@ -340,12 +483,6 @@ struct WaterAmountInputSheet: View {
                 }
             }
         }
-    }
-}
-
-extension Comparable {
-    func clamped(to limits: ClosedRange<Self>) -> Self {
-        min(max(self, limits.lowerBound), limits.upperBound)
     }
 }
 

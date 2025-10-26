@@ -109,28 +109,45 @@ struct ContentView: View {
                 
                 ForEach($store.plants) { $plant in
                     NavigationLink(destination: PlantDetailView(plant: $plant, store: store)) {
-                        VStack(alignment: .leading) {
-                            HStack(spacing: 6) {
-                                Text(plant.name)
-                                // Show drop icon if not watered today
-                                if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
-                                    Image(systemName: "drop.fill")
-                                        .foregroundStyle(.blue)
-                                }
-                                // Show camera icon if no photo logged today
-                                let hasPhotoToday = plant.photoLog.contains { Calendar.current.isDateInToday($0.date) }
-                                if !hasPhotoToday {
-                                    Image(systemName: "camera.fill")
-                                        .foregroundStyle(.orange)
+                        HStack(alignment: .center, spacing: 12) {
+                            // Leading circular thumbnail: latest photo or placeholder
+                            let latestPhoto = plant.photoLog.sorted(by: { $0.date > $1.date }).first
+                            Group {
+                                if let latest = latestPhoto, let uiImage = ImageStorage.loadImage(latest.imageFilename) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    ZStack {
+                                        Color.gray.opacity(0.2)
+                                        Image(systemName: "leaf.fill").foregroundStyle(.secondary)
+                                    }
                                 }
                             }
-                            .font(.headline)
-                            Text(plant.type)
-                                .font(.subheadline)
-//                            Text("Seminata il \(plant.datePlanted.formatted(date: .abbreviated, time: .omitted))")
-//                                .font(.footnote)
-                            Text("Età: \(formattedAge(from: plant.datePlanted))")
-                                .font(.footnote)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+
+                            VStack(alignment: .leading) {
+                                HStack(spacing: 6) {
+                                    Text(plant.name)
+                                    // Show drop icon if not watered today
+                                    if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
+                                        Image(systemName: "drop.fill")
+                                            .foregroundStyle(.blue)
+                                    }
+                                    // Show camera icon if no photo logged today
+                                    let hasPhotoToday = plant.photoLog.contains { Calendar.current.isDateInToday($0.date) }
+                                    if !hasPhotoToday {
+                                        Image(systemName: "camera.fill")
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                                .font(.headline)
+                                Text(plant.type)
+                                    .font(.subheadline)
+                                Text("Età: \(formattedAge(from: plant.datePlanted))")
+                                    .font(.footnote)
+                            }
                         }
                     }
                 }
