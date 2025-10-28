@@ -3,7 +3,9 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var store = PlantStore()
+    @EnvironmentObject private var theme: ThemeSettings
     @State private var showingAdd = false
+    @State private var showingSettings = false
 
     // MARK: - Lunar phase helpers (approximate)
     private var lunarPhaseLine: String {
@@ -157,6 +159,13 @@ struct ContentView: View {
             }
             //.navigationTitle("nullPlants")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Label("Impostazioni", systemImage: "gear")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingAdd = true
@@ -168,7 +177,11 @@ struct ContentView: View {
             .sheet(isPresented: $showingAdd) {
                 AddPlantView(store: store)
             }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
         }
+        .preferredColorScheme(theme.effectiveScheme(system: nil))
     }
 }
 

@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct nullPlantsApp: App {
+    @StateObject private var theme = ThemeSettings()
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(theme)
         }
     }
 }
