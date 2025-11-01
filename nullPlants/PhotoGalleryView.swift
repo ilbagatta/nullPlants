@@ -10,6 +10,9 @@ struct PhotoGalleryView<Item: Identifiable>: View {
     let onClose: () -> Void
     let onDelete: (Item) -> Void
 
+    // A local, mutable copy to reflect deletions immediately in the UI
+    @State private var items: [Item] = []
+
     // Three equal columns with fixed spacing
     private let columns: [GridItem] = Array(repeating: GridItem(.flexible(minimum: 0, maximum: .infinity), spacing: 8, alignment: .center), count: 3)
 
@@ -27,6 +30,9 @@ struct PhotoGalleryView<Item: Identifiable>: View {
         self.onSelect = onSelect
         self.onClose = onClose
         self.onDelete = onDelete
+
+        // Initialize local state from the provided photos
+        self._items = State(initialValue: photos)
     }
 
     @State private var pendingDeletion: Item? = nil
@@ -36,7 +42,7 @@ struct PhotoGalleryView<Item: Identifiable>: View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(photos.sorted(by: { date($0) > date($1) })) { photo in
+                    ForEach(items.sorted(by: { date($0) > date($1) })) { photo in
                         GeometryReader { geo in
                             let side = geo.size.width
                             Button(action: {
@@ -87,6 +93,16 @@ struct PhotoGalleryView<Item: Identifiable>: View {
         ) {
             Button("Elimina", role: .destructive) {
                 if let item = pendingDeletion {
+                    // Remove from disk using the provided filename extractor
+                    let name = filename(item)
+                    _ = ImageStorage.deleteImage(name)
+
+                    // Remove from local list to update the grid immediately
+                    if let idx = items.firstIndex(where: { $0.id == item.id }) {
+                        items.remove(at: idx)
+                    }
+
+                    // Notify external handler if provided
                     onDelete(item)
                 }
                 pendingDeletion = nil

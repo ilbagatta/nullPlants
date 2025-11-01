@@ -66,6 +66,31 @@ struct ContentView: View {
         return max(days, 0)
     }
 
+    // MARK: - Moon symbol mapping
+    private func moonSymbolName(for phaseName: String) -> String {
+        // Map Italian phase names to SF Symbols variants
+        switch phaseName {
+        case "Luna nuova":
+            return "moonphase.new"
+        case "Luna crescente":
+            return "moonphase.waxing.crescent"
+        case "Primo quarto":
+            return "moonphase.first.quarter"
+        case "Gibbosa crescente":
+            return "moonphase.waxing.gibbous"
+        case "Luna piena":
+            return "moonphase.full"
+        case "Gibbosa calante":
+            return "moonphase.waning.gibbous"
+        case "Ultimo quarto":
+            return "moonphase.last.quarter"
+        case "Luna calante":
+            return "moonphase.waning.crescent"
+        default:
+            return "moonphase.new"
+        }
+    }
+
     // MARK: - Age formatting helper
     private func formattedAge(from startDate: Date, to endDate: Date = Date()) -> String {
         let cal = Calendar.current
@@ -95,15 +120,22 @@ struct ContentView: View {
             List {
                 Section {
                 } header: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(lunarPhaseLine)
-                            .font(.callout)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
-                        if let countdown = lunarCountdownLine {
-                            Text(countdown)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                    HStack(alignment: .center, spacing: 12) {
+                        let (phaseName, _) = lunarPhaseSummary(for: Date())
+                        Image(systemName: moonSymbolName(for: phaseName))
+                            .symbolRenderingMode(.hierarchical)
+                            .font(.system(size: 28, weight: .regular))
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(lunarPhaseLine)
+                                .font(.callout)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                            if let countdown = lunarCountdownLine {
+                                Text(countdown)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .textCase(nil)

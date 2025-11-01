@@ -117,110 +117,171 @@ struct PlantDetailView: View {
             }
 
             if !isEditing {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(plant.name)
-                        .font(.largeTitle.weight(.semibold))
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
                         .foregroundStyle(.primary)
                     Text(plant.type)
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                    Text("Età: \(formattedAge(from: plant.datePlanted))")
-                        .font(.subheadline)
+                    Divider().opacity(0.15)
+                    HStack(spacing: 12) {
+                        Label("Età: \(formattedAge(from: plant.datePlanted))", systemImage: "leaf.fill")
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Label("\(plant.datePlanted.formatted(date: .abbreviated, time: .omitted))", systemImage: "calendar")
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.subheadline)
+                }
+                .padding([.horizontal, .top])
+            }
+            else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Modifica pianta")
+                        .font(.headline)
                         .foregroundStyle(.secondary)
-                        .padding(.top, 2)
-                    Text("Seminata il \(plant.datePlanted.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+
+                    VStack(spacing: 10) {
+                        TextField("Nome", text: $editedName)
+                            .textInputAutocapitalization(.words)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+                            )
+                        TextField("Tipo", text: $editedType)
+                            .textInputAutocapitalization(.words)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+                            )
+                        DatePicker("Data di semina", selection: $editedDatePlanted, displayedComponents: .date)
+                    }
                 }
                 .padding([.horizontal, .top])
             }
 
             VStack(alignment: .leading, spacing: 16) {
-                Text("Azioni")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-
-                // Azioni principali
+                // Removed HStack with "Azioni" label and spacer
+                
+                // Azioni principali (modern style)
                 VStack(spacing: 12) {
-                    Button {
-                        showingPhoto = true
-                    } label: {
-                        Label("Scatta foto", systemImage: "camera.fill")
+                    HStack(spacing: 12) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                showingPhoto = true
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "camera.fill")
+                                    .symbolRenderingMode(.hierarchical)
+                                Text("Scatta foto")
+                                    .fontWeight(.semibold)
+                            }
                             .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button {
-                        if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
-                            showingWaterInput = true
-                        } else {
-                            showAlert = true
+                            .padding(.vertical, 14)
+                            .background(
+                                LinearGradient(colors: [Color.accentColor.opacity(0.9), Color.accentColor.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            )
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
+                            .contentShape(Rectangle())
                         }
-                    } label: {
-                        Label("Registra annaffiatura", systemImage: "drop.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.blue)
-                    .disabled(plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }))
-                }
-                .padding(.horizontal)
 
-                // Link secondari
-                VStack(spacing: 8) {
-                    Button {
-                        showingPhotoGallery = true
-                    } label: {
-                        HStack(spacing: 10) {
+                        Button {
+                            showingPhotoGallery = true
+                        } label: {
                             Image(systemName: "square.grid.3x3.fill")
+                                .font(.system(size: 18, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                            Text("Log foto")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.tertiary)
+                                .frame(width: 48, height: 48)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 10)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .accessibilityLabel("Log foto")
                     }
 
-                    Button {
-                        showingWaterLogSheet = true
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "list.bullet")
-                                .foregroundStyle(.secondary)
-                            Text("Log annaffiature")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.tertiary)
+                    HStack(spacing: 12) {
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    showingWaterInput = true
+                                }
+                            } else {
+                                showAlert = true
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "drop.fill")
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(Color.blue, Color.blue.opacity(0.35))
+                                Text("Registra annaffiatura")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(.thinMaterial)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().strokeBorder(Color.blue.opacity(0.2), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 10)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .disabled(plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }))
+                        .opacity(plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) ? 0.5 : 1.0)
+
+                        Button {
+                            showingWaterLogSheet = true
+                        } label: {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 48, height: 48)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .accessibilityLabel("Log annaffiature")
                     }
                 }
                 .padding(.horizontal)
+                .padding(.top, 4)
+
+                // Removed Link secondari (card style) with photo gallery and watering log buttons
+                
             }
             .padding(.vertical, 12)
 
             Spacer(minLength: 0)
 
-            // Bottom Timelapse button
+            // Bottom Timelapse button (floating style)
             VStack(spacing: 8) {
                 Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     showingTimelapse = true
                 } label: {
-                    Label("Timelapse", systemImage: "film")
-                        .frame(maxWidth: .infinity)
+                    HStack(spacing: 8) {
+                        Image(systemName: "film")
+                        Text("Timelapse").fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(.regularMaterial)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(Color.purple.opacity(0.25), lineWidth: 1))
                 }
-                .buttonStyle(.bordered)
-                .tint(.purple)
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
+            .background(.clear)
         }
         .navigationTitle(isEditing ? "Modifica" : plant.name)
         .sheet(isPresented: $showingPhoto) {
