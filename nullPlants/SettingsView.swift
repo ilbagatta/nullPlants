@@ -1,5 +1,7 @@
 import SwiftUI
 import UserNotifications
+import UniformTypeIdentifiers
+import UIKit
 
 struct SettingsView: View {
     @AppStorage("settings.notificationsEnabled") private var notificationsEnabled: Bool = false
@@ -10,6 +12,12 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var theme: ThemeSettings
+
+    @State private var exportURL: URL?
+    @State private var isPresentingShare = false
+    @State private var isPresentingImporter = false
+    @State private var isWorking = false
+    @State private var backupError: String?
 
     var body: some View {
         NavigationStack {
@@ -65,6 +73,36 @@ struct SettingsView: View {
                             }
                     }
                 }
+
+                Section(header: Text("Backup"), footer: Text("Puoi esportare un file ZIP con i dati dell'app o importarne uno precedentemente salvato.")) {
+                    if isWorking {
+                        ProgressView("Elaborazione backup…")
+                    }
+                    Button("Esporta backup") {
+                        Task {
+                            isWorking = true
+                            do {
+                                let url = try await BackupManager.shared.exportBackup()
+                                print("[Backup] Exported at: \(url.path)")
+                                await MainActor.run {
+                                    exportURL = url
+                                    isPresentingShare = true
+                                }
+                            } catch {
+                                let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                                print("[Backup][Export][Error] \(msg)")
+                                await MainActor.run { backupError = msg }
+                            }
+                            await MainActor.run { isWorking = false }
+                        }
+                    }
+                    .disabled(isWorking)
+
+                    Button("Importa backup") {
+                        isPresentingImporter = true
+                    }
+                    .disabled(isWorking)
+                }
             }
             .navigationTitle("Impostazioni")
             .toolbar {
@@ -84,10 +122,55 @@ struct SettingsView: View {
                     NotificationManager.shared.cancelAllManagedNotifications()
                 }
             }
+            .fileImporter(isPresented: $isPresentingImporter, allowedContentTypes: [UTType.zip]) { result in
+                switch result {
+                case .success(let url):
+                    print("[Backup] Import selected: \(url.path)")
+                    Task {
+                        await MainActor.run { isWorking = true }
+                        do {
+                            try await BackupManager.shared.importBackup(from: url)
+                            print("[Backup] Import completed")
+                        } catch {
+                            let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                            print("[Backup][Import][Error] \(msg)")
+                            await MainActor.run { backupError = msg }
+                        }
+                        await MainActor.run { isWorking = false }
+                    }
+                case .failure(let err):
+                    let msg = err.localizedDescription
+                    print("[Backup][Import][Picker Error] \(msg)")
+                    backupError = msg
+                }
+            }
+            .sheet(isPresented: $isPresentingShare, onDismiss: { exportURL = nil }) {
+                if let exportURL {
+                    ShareSheet(activityItems: [exportURL])
+                } else {
+                    Text("Nessun file da condividere")
+                }
+            }
+            .alert("Errore backup", isPresented: Binding(get: { backupError != nil }, set: { _ in backupError = nil })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(backupError ?? "Errore sconosciuto")
+            }
         }
     }
 }
 
 #Preview {
     SettingsView()
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
