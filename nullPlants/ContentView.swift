@@ -1,5 +1,6 @@
 // Schermata principale dell'app nullPlants: lista piante, aggiunta, navigazione dettagli
 import SwiftUI
+import UserNotifications
 
 struct ContentView: View {
     @StateObject private var store = PlantStore()
@@ -213,7 +214,23 @@ struct ContentView: View {
                 SettingsView()
             }
         }
+        .task {
+            await initializeNotificationsIfNeeded()
+        }
         .preferredColorScheme(theme.effectiveScheme(system: nil))
+    }
+    
+    private func initializeNotificationsIfNeeded() async {
+        // Read stored preferences
+        let enabled = UserDefaults.standard.bool(forKey: "settings.notificationsEnabled")
+        if enabled {
+            let granted = (try? await NotificationManager.shared.requestAuthorization()) ?? false
+            if granted {
+                NotificationManager.shared.refreshScheduleFromStoredPreferences()
+            }
+        } else {
+            NotificationManager.shared.cancelAllManagedNotifications()
+        }
     }
 }
 
