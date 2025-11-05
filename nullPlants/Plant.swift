@@ -53,3 +53,15 @@ struct Plant: Identifiable, Codable, Equatable {
         try container.encode(wateringLog, forKey: .wateringLog)
     }
 }
+
+struct PlantPhoto: Identifiable, Codable, Equatable {
+    let id: UUID
+    var date: Date
+    var imageFilename: String // Nome file dell'immagine salvata sul device
+    
+    init(id: UUID = UUID(), date: Date, imageFilename: String) {
+        self.id = id
+        self.date = date
+        self.imageFilename = imageFilename
+    }
+}
