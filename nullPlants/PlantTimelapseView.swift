@@ -10,6 +10,9 @@ struct PlantTimelapseView: View {
     @State private var timer: Timer? = nil
     @State private var perPhotoDuration: Double = 1.0 // seconds per photo (0.5 - 3.0)
     @State private var exportedVideoURL: URL? = nil
+    @State private var isLooping: Bool = false
+    @State private var selectedSpeedIndex: Int = 1 // 0: 0.5x, 1: 1x, 2: 2x
+    private var selectedSpeed: Double { [0.5, 1.0, 2.0][min(max(selectedSpeedIndex, 0), 2)] }
 
     init(photos: [PlantPhoto], speed: Double = 1.0) {
         // Ordina le foto in ordine di data crescente
@@ -20,6 +23,12 @@ struct PlantTimelapseView: View {
 
     var body: some View {
         VStack(spacing: 20) {
+            HStack {
+                Label("Timelapse", systemImage: "leaf.arrow.triangle.circlepath")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+            }
+            
             if let image = loadImage(photos[safe: currentIndex]?.imageFilename ?? "") {
                 ZStack(alignment: .bottomTrailing) {
                     Image(uiImage: image)
@@ -60,26 +69,56 @@ struct PlantTimelapseView: View {
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Durata per foto")
-                    Spacer()
-                    Text(String(format: "%.1f s", perPhotoDuration))
-                        .foregroundColor(.secondary)
+            
+            HStack(alignment: .top, spacing: 16) {
+                // Durata per foto (wheel)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Durata per foto")
+                        Spacer()
+                        Text(String(format: "%.1f s", perPhotoDuration))
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
+                    Picker("Durata per foto", selection: Binding(
+                        get: { perPhotoDuration },
+                        set: { perPhotoDuration = $0 }
+                    )) {
+                        ForEach(Array(stride(from: 0.5, through: 10.0, by: 0.5)), id: \.self) { value in
+                            Text(String(format: "%.1f s", value)).tag(value)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxHeight: 120)
                 }
-                Slider(value: $perPhotoDuration, in: 0.5...3.0, step: 0.1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Velocità (segmented)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Velocità")
+                    Picker("Velocità", selection: $selectedSpeedIndex) {
+                        Text("0.5×").tag(0)
+                        Text("1×").tag(1)
+                        Text("2×").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             
-            HStack(spacing: 20) {
+            HStack(spacing: 12) {
                 Button(isPlaying ? "Stop" : "Play Timelapse") {
-                    if isPlaying {
-                        stopTimelapse()
-                    } else {
-                        playTimelapse()
-                    }
+                    if isPlaying { stopTimelapse() } else { playTimelapse() }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(photos.count < 2)
+
+                Button {
+                    isLooping.toggle()
+                } label: {
+                    Label("Loop", systemImage: isLooping ? "repeat.circle.fill" : "repeat")
+                }
+                .buttonStyle(.bordered)
 
                 Button("Esporta Video") {
                     exportTimelapseVideo()
@@ -128,13 +167,20 @@ struct PlantTimelapseView: View {
         isPlaying = true
         currentIndex = 0
         stopTimelapse()
-        let baseInterval = 0.7
-        let interval = max(0.1, baseInterval / max(speed, 0.1))
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { t in
+        // Calcola l'intervallo in base alla durata per foto e alla velocità selezionata
+        let base = max(0.1, perPhotoDuration)
+        let interval = max(0.05, min(1.0, base / max(selectedSpeed, 0.1)))
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             if currentIndex < photos.count - 1 {
-                currentIndex += 1
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    currentIndex += 1
+                }
             } else {
-                stopTimelapse()
+                if isLooping {
+                    withAnimation(.easeInOut(duration: 0.2)) { currentIndex = 0 }
+                } else {
+                    stopTimelapse()
+                }
             }
         }
     }

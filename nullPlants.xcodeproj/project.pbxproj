@@ -29,9 +29,22 @@
 		513967642EA51A570085FBB0 /* nullPlantsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nullPlantsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		516ACECF2EB8278400D3345F /* Exceptions for "nullPlants" folder in "nullPlants" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5139674C2EA51A550085FBB0 /* nullPlants */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5139674F2EA51A550085FBB0 /* nullPlants */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				516ACECF2EB8278400D3345F /* Exceptions for "nullPlants" folder in "nullPlants" target */,
+			);
 			path = nullPlants;
 			sourceTree = "<group>";
 		};
@@ -187,7 +200,7 @@
 				};
 			};
 			buildConfigurationList = 513967482EA51A550085FBB0 /* Build configuration list for PBXProject "nullPlants" */;
-			developmentRegion = en;
+			developmentRegion = it;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
@@ -401,6 +414,7 @@
 				DEVELOPMENT_TEAM = YN7CAKC22B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = nullPlants/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = foto;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = foto;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = foto;
@@ -436,6 +450,7 @@
 				DEVELOPMENT_TEAM = YN7CAKC22B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = nullPlants/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = foto;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = foto;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = foto;

@@ -208,6 +208,18 @@ struct PlantDetailView: View {
                                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .accessibilityLabel("Log foto")
+                        
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            showingTimelapse = true
+                        } label: {
+                            Image(systemName: "film")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 48, height: 48)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .accessibilityLabel("Timelapse")
                     }
 
                     HStack(spacing: 12) {
@@ -262,6 +274,7 @@ struct PlantDetailView: View {
 
             Spacer(minLength: 0)
 
+            /*
             // Bottom Timelapse button (floating style)
             VStack(spacing: 8) {
                 Button {
@@ -282,6 +295,7 @@ struct PlantDetailView: View {
             .padding(.horizontal)
             .padding(.vertical, 12)
             .background(.clear)
+            */
         }
         .navigationTitle(isEditing ? "Modifica" : plant.name)
         .sheet(isPresented: $showingPhoto) {
