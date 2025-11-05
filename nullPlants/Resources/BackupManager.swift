@@ -7,6 +7,11 @@ struct BackupManager {
         case duplicate
     }
     
+    enum DestinationPolicy {
+        case overwrite
+        case duplicate
+    }
+    
     struct ExportScope {
         /// If nil, export all plants
         let plantIDs: [UUID]?
@@ -48,7 +53,27 @@ struct BackupManager {
     
     // MARK: - Export
     
-    static func exportBackup(from store: PlantStore, scope: ExportScope? = nil, to destinationZipURL: URL) throws {
+    static func exportBackup(from store: PlantStore, scope: ExportScope? = nil, to destinationZipURL: URL, ifDestinationExists policy: DestinationPolicy = .duplicate) throws -> URL {
+        var finalURL = destinationZipURL
+        let fm = FileManager.default
+        if fm.fileExists(atPath: finalURL.path) {
+            switch policy {
+            case .overwrite:
+                try? fm.removeItem(at: finalURL)
+            case .duplicate:
+                let base = (finalURL.lastPathComponent as NSString).deletingPathExtension
+                let ext = (finalURL.lastPathComponent as NSString).pathExtension
+                var idx = 1
+                var candidate = finalURL
+                while fm.fileExists(atPath: candidate.path) {
+                    let newName = "\(base) \(idx)" + (ext.isEmpty ? "" : ".\(ext)")
+                    candidate = finalURL.deletingLastPathComponent().appendingPathComponent(newName)
+                    idx += 1
+                }
+                finalURL = candidate
+            }
+        }
+        
         let exportPlants: [Plant]
         if let selectedIDs = scope?.plantIDs {
             exportPlants = store.plants.filter { selectedIDs.contains($0.id) }
@@ -110,32 +135,32 @@ struct BackupManager {
         let manifestURL = tempBackupFolder.appendingPathComponent(manifestFilename)
         try manifestData.write(to: manifestURL, options: [.atomic])
         
-        // Zip tempBackupFolder into destinationZipURL
-        try SimpleZip.zip(folder: tempBackupFolder, to: destinationZipURL)
+        // Zip tempBackupFolder into finalURL
+        try SimpleZip.zip(folder: tempBackupFolder, to: finalURL)
         
         // Cleanup
-        try? FileManager.default.removeItem(at: tempBackupFolder)
+        try? fm.removeItem(at: tempBackupFolder)
+        
+        return finalURL
     }
     
-    // MARK: - Import
+    struct ImportPreview {
+        let conflictingPlantIDs: [UUID]
+        let newPlantIDs: [UUID]
+    }
     
-    static func importBackup(into store: PlantStore, from url: URL, conflictPolicy: ConflictPolicy = .duplicate) throws {
+    private static func prepareImportFolderAndLoadManifest(from url: URL) throws -> (tempFolder: URL, manifest: Manifest) {
         let isZip = url.pathExtension.lowercased() == "zip"
         let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
         let tempImportFolder = cachesDirectory().appendingPathComponent("nullplants_import_\(timestamp)", isDirectory: true)
-        
         try ensureDir(tempImportFolder)
-        
         if isZip {
             try SimpleZip.unzip(file: url, to: tempImportFolder)
         } else {
-            // If not zip, treat url as folder with manifest.json inside
-            // Copy folder content into tempImportFolder to unify handling
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
                 throw NSError(domain: "BackupManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Import URL is not a directory"])
             }
-            // Copy contents of url folder into tempImportFolder
             let contents = try FileManager.default.contentsOfDirectory(atPath: url.path)
             for item in contents {
                 let src = url.appendingPathComponent(item)
@@ -143,19 +168,33 @@ struct BackupManager {
                 try FileManager.default.copyItem(at: src, to: dst)
             }
         }
-        
-        // Find manifest.json
         let manifestURL = tempImportFolder.appendingPathComponent(manifestFilename)
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             throw NSError(domain: "BackupManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "manifest.json not found in import"])
         }
-        
         let manifestData = try Data(contentsOf: manifestURL)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        
-        // Decode manifest ignoring unknown keys
         let manifest = try decoder.decode(Manifest.self, from: manifestData)
+        return (tempImportFolder, manifest)
+    }
+    
+    static func previewImport(into store: PlantStore, from url: URL) throws -> ImportPreview {
+        let (tempFolder, manifest) = try prepareImportFolderAndLoadManifest(from: url)
+        defer { try? FileManager.default.removeItem(at: tempFolder) }
+        let existingIDs = Set(store.plants.map { $0.id })
+        var conflicting: [UUID] = []
+        var newOnes: [UUID] = []
+        for p in manifest.plants {
+            if existingIDs.contains(p.id) { conflicting.append(p.id) } else { newOnes.append(p.id) }
+        }
+        return ImportPreview(conflictingPlantIDs: conflicting, newPlantIDs: newOnes)
+    }
+    
+    // MARK: - Import
+    
+    static func importBackup(into store: PlantStore, from url: URL, conflictPolicy: ConflictPolicy = .duplicate) throws {
+        let (tempImportFolder, manifest) = try prepareImportFolderAndLoadManifest(from: url)
         
         let mediaDir = tempImportFolder.appendingPathComponent(mediaFolderName, isDirectory: true)
         let docsDir = documentsDirectory()

@@ -9,24 +9,54 @@ struct PlantTimelapseView: View {
     @State private var isPlaying = false
     @State private var timer: Timer? = nil
     @State private var perPhotoDuration: Double = 1.0 // seconds per photo (0.5 - 3.0)
-    @State private var exportedVideoURL: URL? = nil
     @State private var isLooping: Bool = false
-    @State private var selectedSpeedIndex: Int = 1 // 0: 0.5x, 1: 1x, 2: 2x
-    private var selectedSpeed: Double { [0.5, 1.0, 2.0][min(max(selectedSpeedIndex, 0), 2)] }
+    @State private var playbackSpeed: Double = 1.0
+    @State private var isExporting: Bool = false
+    @State private var shareURL: URL? = nil
 
     init(photos: [PlantPhoto], speed: Double = 1.0) {
         // Ordina le foto in ordine di data crescente
         self.photos = photos.sorted { $0.date < $1.date }
         self.speed = speed
         _currentIndex = State(initialValue: max(photos.count - 1, 0))
+        _playbackSpeed = State(initialValue: speed)
     }
 
     var body: some View {
         VStack(spacing: 20) {
-            HStack {
-                Label("Timelapse", systemImage: "leaf.arrow.triangle.circlepath")
-                    .font(.title3.weight(.semibold))
-                Spacer()
+            HStack(alignment: .center, spacing: 16) {
+                // Speed control (label + slider)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Velocità timelapse")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Text(String(format: "%.1fx", playbackSpeed))
+                            .monospacedDigit()
+                            .frame(minWidth: 56, alignment: .leading)
+                        Stepper(value: $playbackSpeed, in: 0.25...3.0, step: 0.25) {
+                            EmptyView()
+                        }
+                        .labelsHidden()
+                    }
+                }
+
+                // Duration per photo (compact)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Durata per foto")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Text(String(format: "%.1f s", perPhotoDuration))
+                            .monospacedDigit()
+                            .frame(minWidth: 56, alignment: .leading)
+                        Stepper(value: $perPhotoDuration, in: 0.5...10.0, step: 0.5) {
+                            EmptyView()
+                        }
+                        .labelsHidden()
+                    }
+                }
+                .frame(width: 180, alignment: .leading)
             }
             
             if let image = loadImage(photos[safe: currentIndex]?.imageFilename ?? "") {
@@ -70,82 +100,73 @@ struct PlantTimelapseView: View {
                     .foregroundColor(.secondary)
             }
             
-            HStack(alignment: .top, spacing: 16) {
-                // Durata per foto (wheel)
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Durata per foto")
-                        Spacer()
-                        Text(String(format: "%.1f s", perPhotoDuration))
-                            .foregroundColor(.secondary)
-                            .monospacedDigit()
-                    }
-                    Picker("Durata per foto", selection: Binding(
-                        get: { perPhotoDuration },
-                        set: { perPhotoDuration = $0 }
-                    )) {
-                        ForEach(Array(stride(from: 0.5, through: 10.0, by: 0.5)), id: \.self) { value in
-                            Text(String(format: "%.1f s", value)).tag(value)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(maxHeight: 120)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                // Velocità (segmented)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Velocità")
-                    Picker("Velocità", selection: $selectedSpeedIndex) {
-                        Text("0.5×").tag(0)
-                        Text("1×").tag(1)
-                        Text("2×").tag(2)
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            
             HStack(spacing: 12) {
-                Button(isPlaying ? "Stop" : "Play Timelapse") {
+                // Play/Stop circular button (larger)
+                Button {
                     if isPlaying { stopTimelapse() } else { playTimelapse() }
+                } label: {
+                    Image(systemName: isPlaying ? "stop.fill" : "play.fill")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 64, height: 64)
+                        .background(Color.accentColor, in: Circle())
+                        .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
                 }
-                .buttonStyle(.borderedProminent)
                 .disabled(photos.count < 2)
 
+                // Loop circular button (smaller)
                 Button {
                     isLooping.toggle()
                 } label: {
-                    Label("Loop", systemImage: isLooping ? "repeat.circle.fill" : "repeat")
+                    Image(systemName: isLooping ? "repeat.circle.fill" : "repeat")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1))
                 }
-                .buttonStyle(.bordered)
-
-                Button("Esporta Video") {
-                    exportTimelapseVideo()
+            }
+        }
+        .overlay(
+            Group {
+                if isExporting {
+                    ZStack {
+                        Color.black.opacity(0.25).ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView("Esportazione in corso…")
+                                .progressViewStyle(CircularProgressViewStyle())
+                            Text("Questo potrebbe richiedere qualche istante.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(20)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                        .shadow(radius: 10)
+                    }
                 }
-                .buttonStyle(.bordered)
-                .disabled(photos.isEmpty)
+            }
+        )
+        .sheet(isPresented: Binding(get: { shareURL != nil }, set: { if !$0 { shareURL = nil } })) {
+            if let url = shareURL {
+                ActivityView(activityItems: [url])
             }
         }
         .padding()
         .onDisappear {
             stopTimelapse()
         }
-        .sheet(isPresented: Binding(get: { exportedVideoURL != nil }, set: { if !$0 { exportedVideoURL = nil } })) {
-            if let url = exportedVideoURL {
-                VStack(spacing: 20) {
-                    Text("Video esportato")
-                        .font(.headline)
-                    ShareLink(item: url) {
-                        Label("Condividi video", systemImage: "square.and.arrow.up")
-                    }
-                    Text(url.lastPathComponent)
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    exportTimelapseVideo()
+                } label: {
+                    Label("Esporta", systemImage: "square.and.arrow.up")
                 }
-                .padding()
-            } else {
-                ProgressView()
+                .disabled(photos.isEmpty || isExporting)
             }
         }
     }
@@ -169,7 +190,7 @@ struct PlantTimelapseView: View {
         stopTimelapse()
         // Calcola l'intervallo in base alla durata per foto e alla velocità selezionata
         let base = max(0.1, perPhotoDuration)
-        let interval = max(0.05, min(1.0, base / max(selectedSpeed, 0.1)))
+        let interval = max(0.05, min(1.0, base / max(playbackSpeed, 0.1)))
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             if currentIndex < photos.count - 1 {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -192,10 +213,14 @@ struct PlantTimelapseView: View {
     }
 
     private func exportTimelapseVideo() {
+        isExporting = true
         // Ensure we have images
         let ordered = photos.sorted { $0.date < $1.date }
         let uiImages: [UIImage] = ordered.compactMap { loadImage($0.imageFilename) }
-        guard !uiImages.isEmpty else { return }
+        guard !uiImages.isEmpty else {
+            DispatchQueue.main.async { isExporting = false }
+            return
+        }
 
         // Choose output size based on first image, limit max dimension for file size
         let first = uiImages[0]
@@ -303,7 +328,8 @@ struct PlantTimelapseView: View {
                             input.markAsFinished()
                             writer.cancelWriting()
                             DispatchQueue.main.async {
-                                exportedVideoURL = nil
+                                isExporting = false
+                                shareURL = nil
                             }
                             return
                         }
@@ -317,18 +343,14 @@ struct PlantTimelapseView: View {
                 input.markAsFinished()
                 writer.finishWriting {
                     DispatchQueue.main.async {
+                        isExporting = false
                         if writer.status == .completed {
-                            exportedVideoURL = outputURL
-                        } else {
-                            exportedVideoURL = nil
+                            shareURL = outputURL
                         }
                     }
                 }
             }
         }
-
-        // Present sheet once export finishes; interim state will show ProgressView
-        exportedVideoURL = nil
     }
 }
 
@@ -336,6 +358,19 @@ struct PlantTimelapseView: View {
 fileprivate extension Array {
     subscript(safe index: Int) -> Element? {
         (startIndex..<endIndex).contains(index) ? self[index] : nil
+    }
+}
+
+struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // Nothing to update
     }
 }
 

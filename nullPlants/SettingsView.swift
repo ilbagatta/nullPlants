@@ -10,6 +10,25 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var theme: ThemeSettings
+    @EnvironmentObject private var store: PlantStore
+
+    @State private var exportedZipURL: URL? = nil
+    @State private var showingImporter: Bool = false
+    @State private var alertMessage: String? = nil
+    @State private var showingExportPolicy: Bool = false
+
+    @State private var showingImportPolicy: Bool = false
+    @State private var pendingImportPolicy: BackupManager.ConflictPolicy = .duplicate
+
+    @State private var pendingImportURL: URL? = nil
+    @State private var importConflictsCount: Int = 0
+
+    @State private var showingExportScopeDialog: Bool = false
+    @State private var showingExportPicker: Bool = false
+    @State private var selectedPlantIDsForExport: Set<UUID> = []
+
+    @State private var isWorking: Bool = false
+    @State private var showingShareSheet: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -65,6 +84,20 @@ struct SettingsView: View {
                             }
                     }
                 }
+                
+                Section(header: Text("Backup")) {
+                    Button {
+                        showingExportScopeDialog = true
+                    } label: {
+                        Label("Esporta backup", systemImage: "square.and.arrow.up")
+                    }
+                    
+                    Button {
+                        showingImporter = true
+                    } label: {
+                        Label("Importa backup", systemImage: "square.and.arrow.down")
+                    }
+                }
             }
             .navigationTitle("Impostazioni")
             .toolbar {
@@ -85,9 +118,199 @@ struct SettingsView: View {
                 }
             }
         }
+        .overlay(
+            Group {
+                if isWorking {
+                    ZStack {
+                        Color.black.opacity(0.25).ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView("Elaborazione in corso…")
+                                .progressViewStyle(CircularProgressViewStyle())
+                            Text("Questo potrebbe richiedere qualche istante.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(20)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                        .shadow(radius: 10)
+                    }
+                }
+            }
+        )
+        .sheet(isPresented: $showingImporter) {
+            DocumentPicker(allowedContentTypes: ["public.zip-archive"]) { url in
+                if let url {
+                    isWorking = true
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        do {
+                            let preview = try BackupManager.previewImport(into: store, from: url)
+                            if preview.conflictingPlantIDs.isEmpty {
+                                try BackupManager.importBackup(into: store, from: url, conflictPolicy: .duplicate)
+                                DispatchQueue.main.async { isWorking = false; alertMessage = "Import completato" }
+                            } else {
+                                DispatchQueue.main.async {
+                                    pendingImportURL = url
+                                    importConflictsCount = preview.conflictingPlantIDs.count
+                                    isWorking = false
+                                    showingImportPolicy = true
+                                }
+                            }
+                        } catch {
+                            DispatchQueue.main.async { isWorking = false; alertMessage = "Errore anteprima import: \(error.localizedDescription)" }
+                        }
+                    }
+                }
+            }
+        }
+        .alert("Backup", isPresented: Binding(get: { alertMessage != nil }, set: { if !$0 { alertMessage = nil } })) {
+            Button("OK", role: .cancel) { alertMessage = nil }
+        } message: {
+            Text(alertMessage ?? "")
+        }
+        .confirmationDialog("Politica di import", isPresented: $showingImportPolicy, titleVisibility: .visible) {
+            Button("Duplica") {
+                guard let url = pendingImportURL else { return }
+                isWorking = true
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        try BackupManager.importBackup(into: store, from: url, conflictPolicy: .duplicate)
+                        DispatchQueue.main.async { isWorking = false; alertMessage = "Import completato" }
+                    } catch {
+                        DispatchQueue.main.async { isWorking = false; alertMessage = "Errore import: \(error.localizedDescription)" }
+                    }
+                }
+                pendingImportURL = nil
+            }
+            Button("Sovrascrivi", role: .destructive) {
+                guard let url = pendingImportURL else { return }
+                isWorking = true
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        try BackupManager.importBackup(into: store, from: url, conflictPolicy: .overwrite)
+                        DispatchQueue.main.async { isWorking = false; alertMessage = "Import completato" }
+                    } catch {
+                        DispatchQueue.main.async { isWorking = false; alertMessage = "Errore import: \(error.localizedDescription)" }
+                    }
+                }
+                pendingImportURL = nil
+            }
+            Button("Annulla", role: .cancel) { pendingImportURL = nil }
+        } message: {
+            Text("Trovate \(importConflictsCount) piante già esistenti. Come vuoi procedere?")
+        }
+        .confirmationDialog("Esporta", isPresented: $showingExportScopeDialog, titleVisibility: .visible) {
+            Button("Tutte le piante") {
+                isWorking = true
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let dest = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("nullplants_backup_\(Int(Date().timeIntervalSince1970)).zip")
+                    if let finalURL = try? BackupManager.exportBackup(from: store, scope: nil, to: dest, ifDestinationExists: .duplicate) {
+                        DispatchQueue.main.async {
+                            exportedZipURL = finalURL
+                            isWorking = false
+                            showingShareSheet = true
+                        }
+                    } else {
+                        DispatchQueue.main.async { isWorking = false; alertMessage = "Errore export" }
+                    }
+                }
+            }
+            Button("Seleziona piante…") {
+                selectedPlantIDsForExport = []
+                showingExportPicker = true
+            }
+            Button("Annulla", role: .cancel) {}
+        }
+        .sheet(isPresented: $showingExportPicker) {
+            NavigationStack {
+                List {
+                    ForEach(store.plants) { plant in
+                        Toggle(isOn: Binding(
+                            get: { selectedPlantIDsForExport.contains(plant.id) },
+                            set: { isOn in
+                                if isOn { selectedPlantIDsForExport.insert(plant.id) }
+                                else { selectedPlantIDsForExport.remove(plant.id) }
+                            }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(plant.name)
+                                Text(plant.type).font(.caption).foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Seleziona piante")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Annulla") { showingExportPicker = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Esporta") {
+                            isWorking = true
+                            DispatchQueue.global(qos: .userInitiated).async {
+                                let dest = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("nullplants_backup_\(Int(Date().timeIntervalSince1970)).zip")
+                                let scope = BackupManager.ExportScope(plantIDs: Array(selectedPlantIDsForExport))
+                                if let finalURL = try? BackupManager.exportBackup(from: store, scope: scope, to: dest, ifDestinationExists: .duplicate) {
+                                    DispatchQueue.main.async {
+                                        exportedZipURL = finalURL
+                                        isWorking = false
+                                        showingExportPicker = false
+                                        showingShareSheet = true
+                                    }
+                                } else {
+                                    DispatchQueue.main.async { isWorking = false; alertMessage = "Errore export" }
+                                }
+                            }
+                        }
+                        .disabled(selectedPlantIDsForExport.isEmpty)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingShareSheet, onDismiss: { exportedZipURL = nil }) {
+            if let url = exportedZipURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
     }
+}
+
+import UniformTypeIdentifiers
+struct DocumentPicker: UIViewControllerRepresentable {
+    let allowedContentTypes: [String]
+    var onPick: (URL?) -> Void
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let types = allowedContentTypes.compactMap { UTType(importedAs: $0) }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPick: (URL?) -> Void
+        init(onPick: @escaping (URL?) -> Void) { self.onPick = onPick }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onPick(urls.first)
+        }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(nil)
+        }
+    }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
     SettingsView()
 }
+

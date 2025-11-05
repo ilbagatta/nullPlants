@@ -212,6 +212,8 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
+                    .environmentObject(store)
+                    .environmentObject(theme)
             }
         }
         .task {

@@ -40,7 +40,13 @@ enum SimpleZip {
         for case let file as URL in enumerator {
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: file.path, isDirectory: &isDir), !isDir.boolValue else { continue }
-            let relPath = file.path.replacingOccurrences(of: folderURL.path + "/", with: "")
+            // Build a safe relative path from folderURL to file using path components
+            let baseComps = folderURL.standardizedFileURL.pathComponents
+            let fileComps = file.standardizedFileURL.pathComponents
+            var i = 0
+            while i < min(baseComps.count, fileComps.count) && baseComps[i] == fileComps[i] { i += 1 }
+            let remaining = fileComps.dropFirst(i)
+            let relPath = remaining.joined(separator: "/")
             let (crc, size) = try crc32(of: file)
             entries.append(Entry(fileURL: file, path: relPath.replacingOccurrences(of: "\\", with: "/"), fileSize: size, crc32: crc))
         }
@@ -226,3 +232,4 @@ enum SimpleZip {
 private extension Data {
     static func + (lhs: Data, rhs: Data) -> Data { var d = Data(); d.append(lhs); d.append(rhs); return d }
 }
+

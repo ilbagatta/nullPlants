@@ -22,8 +22,6 @@ struct PlantDetailView: View {
     @State private var showingDeleteWaterAlert = false
     @State private var pendingWaterDeleteDate: Date? = nil
     
-    @State private var timelapseSpeed: Double = 1.0 // 1x by default
-
     @State private var isEditing = false
     @State private var editedName: String = ""
     @State private var editedType: String = ""
@@ -486,23 +484,14 @@ struct PlantDetailView: View {
     @ViewBuilder
     private func timelapseSheet() -> some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    let speedText = String(format: "%.1fx", timelapseSpeed)
-                    Text("Velocità timelapse: \(speedText)")
-                    Slider(value: $timelapseSpeed, in: 0.25...3.0, step: 0.25)
+            PlantTimelapseView(photos: plant.photoLog)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle("Timelapse")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Chiudi") { showingTimelapse = false }
+                    }
                 }
-                .padding(.horizontal)
-
-                PlantTimelapseView(photos: plant.photoLog, speed: timelapseSpeed)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .navigationTitle("Timelapse")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Chiudi") { showingTimelapse = false }
-                }
-            }
         }
     }
 }
@@ -523,14 +512,6 @@ struct PlantPhotoThumbnail: View {
                 .overlay(Image(systemName: "photo").foregroundColor(.gray))
         }
     }
-}
-
-struct ActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct WaterAmountInputSheet: View {
