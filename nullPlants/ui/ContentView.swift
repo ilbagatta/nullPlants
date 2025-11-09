@@ -67,6 +67,23 @@ struct ContentView: View {
         return max(days, 0)
     }
 
+    private var currentPhaseName: String {
+        lunarPhaseSummary(for: Date()).0
+    }
+
+    private var customDayChangeLine: String? {
+        let cutoffMinutes = UserDefaults.standard.integer(forKey: "settings.customDayCutoffMinutes")
+        guard cutoffMinutes > 0 else { return nil }
+        let hours = cutoffMinutes / 60
+        let minutes = cutoffMinutes % 60
+        let comps = DateComponents(calendar: Calendar.current, hour: hours, minute: minutes)
+        let time = comps.date ?? Date()
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return "Il giorno cambia alle \(formatter.string(from: time))"
+    }
+
     // MARK: - Moon symbol mapping
     private func moonSymbolName(for phaseName: String) -> String {
         // Map Italian phase names to SF Symbols variants
@@ -116,78 +133,104 @@ struct ContentView: View {
         return parts.prefix(2).joined(separator: " e ")
     }
     
+    // MARK: - Custom day boundary helper
+    // cutoffMinutes: minutes after midnight local time when the app considers a new day to start (0..1439)
+    private func isSameCustomDay(date1: Date, date2: Date, cutoffMinutes: Int) -> Bool {
+        let calendar = Calendar.current
+        let tz = TimeZone.current
+        // Normalize both dates by subtracting cutoff from local time to align the boundary to midnight
+        func shifted(_ d: Date) -> Date {
+            var comps = calendar.dateComponents(in: tz, from: d)
+            // Convert cutoff minutes to hours/minutes
+            let cutoffH = cutoffMinutes / 60
+            let cutoffM = cutoffMinutes % 60
+            // Subtract cutoff by moving back that amount; we do this by constructing a Date by subtracting components
+            return calendar.date(byAdding: DateComponents(hour: -cutoffH, minute: -cutoffM), to: d) ?? d
+        }
+        let s1 = shifted(date1)
+        let s2 = shifted(date2)
+        return calendar.isDate(s1, inSameDayAs: s2)
+    }
+    
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                } header: {
-                    HStack(alignment: .center, spacing: 12) {
-                        let (phaseName, _) = lunarPhaseSummary(for: Date())
-                        Image(systemName: moonSymbolName(for: phaseName))
-                            .symbolRenderingMode(.hierarchical)
-                            .font(.system(size: 28, weight: .regular))
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(lunarPhaseLine)
-                                .font(.callout)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.primary)
-                            if let countdown = lunarCountdownLine {
-                                Text(countdown)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: moonSymbolName(for: currentPhaseName))
+                        .symbolRenderingMode(.hierarchical)
+                        .font(.system(size: 28, weight: .regular))
+                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(lunarPhaseLine)
+                            .font(.callout)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                        if let countdown = lunarCountdownLine {
+                            Text(countdown)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let customLine = customDayChangeLine {
+                            Text(customLine)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .textCase(nil)
                 }
                 
-                ForEach($store.plants) { $plant in
-                    NavigationLink(destination: PlantDetailView(plant: $plant, store: store)) {
-                        HStack(alignment: .center, spacing: 12) {
-                            // Leading circular thumbnail: latest photo or placeholder
-                            let latestPhoto = plant.photoLog.sorted(by: { $0.date > $1.date }).first
-                            Group {
-                                if let latest = latestPhoto, let uiImage = ImageStorage.loadImage(latest.imageFilename) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                } else {
-                                    ZStack {
-                                        Color.gray.opacity(0.2)
-                                        Image(systemName: "leaf.fill").foregroundStyle(.secondary)
+                Section {
+                    ForEach($store.plants) { $plant in
+                        NavigationLink(destination: PlantDetailView(plant: $plant, store: store)) {
+                            HStack(alignment: .center, spacing: 12) {
+                                // Leading circular thumbnail: latest photo or placeholder
+                                let latestPhoto = plant.photoLog.sorted(by: { $0.date > $1.date }).first
+                                Group {
+                                    if let latest = latestPhoto, let uiImage = ImageStorage.loadImage(latest.imageFilename) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        ZStack {
+                                            Color.gray.opacity(0.2)
+                                            Image(systemName: "leaf.fill").foregroundStyle(.secondary)
+                                        }
                                     }
                                 }
-                            }
-                            .frame(width: 44, height: 44)
-                            .clipShape(Circle())
+                                .frame(width: 44, height: 44)
+                                .clipShape(Circle())
 
-                            VStack(alignment: .leading) {
-                                HStack(spacing: 6) {
-                                    Text(plant.name)
-                                    // Show drop icon if not watered today
-                                    if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
-                                        Image(systemName: "drop.fill")
-                                            .foregroundStyle(.blue)
+                                VStack(alignment: .leading) {
+                                    HStack(spacing: 6) {
+                                        Text(plant.name)
+                                        // Read cutoff from UserDefaults for custom day boundary
+                                        let cutoffMinutes = UserDefaults.standard.integer(forKey: "settings.customDayCutoffMinutes")
+                                        let cutoff = cutoffMinutes > 0 ? cutoffMinutes : 0
+                                        // Show drop icon if not watered today according to custom cutoff
+                                        if !plant.wateringLog.contains(where: { isSameCustomDay(date1: $0.date, date2: Date(), cutoffMinutes: cutoff) }) {
+                                            Image(systemName: "drop.fill")
+                                                .foregroundStyle(.blue)
+                                        }
+                                        // Show camera icon if no photo logged today according to custom cutoff
+                                        let hasPhotoToday = plant.photoLog.contains { isSameCustomDay(date1: $0.date, date2: Date(), cutoffMinutes: cutoff) }
+                                        if !hasPhotoToday {
+                                            Image(systemName: "camera.fill")
+                                                .foregroundStyle(.orange)
+                                        }
                                     }
-                                    // Show camera icon if no photo logged today
-                                    let hasPhotoToday = plant.photoLog.contains { Calendar.current.isDateInToday($0.date) }
-                                    if !hasPhotoToday {
-                                        Image(systemName: "camera.fill")
-                                            .foregroundStyle(.orange)
-                                    }
+                                    .font(.headline)
+                                    Text(plant.type)
+                                        .font(.subheadline)
+                                    Text("Età: \(formattedAge(from: plant.datePlanted))")
+                                        .font(.footnote)
                                 }
-                                .font(.headline)
-                                Text(plant.type)
-                                    .font(.subheadline)
-                                Text("Età: \(formattedAge(from: plant.datePlanted))")
-                                    .font(.footnote)
                             }
                         }
                     }
-                }
-                .onDelete { indices in
-                    indices.map { store.plants[$0] }.forEach(store.deletePlant)
+                    .onDelete { indices in
+                        indices.map { store.plants[$0] }.forEach(store.deletePlant)
+                    }
+                } header: {
+                    Text("Piante")
                 }
             }
             //.navigationTitle("nullPlants")

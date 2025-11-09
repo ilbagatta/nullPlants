@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("settings.notificationMinute") private var notificationMinute: Int = 0
     @AppStorage("settings.notifyPhoto") private var notifyPhoto: Bool = true
     @AppStorage("settings.notifyWater") private var notifyWater: Bool = false
+    @AppStorage("settings.customDayCutoffMinutes") private var customDayCutoffMinutes: Int = 0
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var theme: ThemeSettings
@@ -85,6 +86,45 @@ struct SettingsView: View {
                     }
                 }
                 
+                Section(header: Text("Giorno personalizzato"), footer: Text("Definisci a che ora inizia il nuovo giorno per i controlli di foto e irrigazione. Utile se fotografi/annaffi tardi la sera.")) {
+                    // Picker for cutoff time (hour and minute)
+                    DatePicker("Inizio nuovo giorno", selection: Binding(get: {
+                        let minutes = customDayCutoffMinutes
+                        let h = minutes / 60
+                        let m = minutes % 60
+                        var comps = DateComponents()
+                        comps.hour = h
+                        comps.minute = m
+                        return Calendar.current.date(from: comps) ?? Date()
+                    }, set: { newDate in
+                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                        let h = comps.hour ?? 0
+                        let m = comps.minute ?? 0
+                        customDayCutoffMinutes = h * 60 + m
+                    }), displayedComponents: .hourAndMinute)
+
+                    // Info line showing chosen time
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                        Text({ () -> String in
+                            let minutes = customDayCutoffMinutes
+                            let h = minutes / 60
+                            let m = minutes % 60
+                            var comps = DateComponents()
+                            comps.hour = h
+                            comps.minute = m
+                            let date = Calendar.current.date(from: comps) ?? Date()
+                            let df = DateFormatter()
+                            df.timeStyle = .short
+                            df.dateStyle = .none
+                            return "Il giorno cambia alle \(df.string(from: date))"
+                        }())
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    }
+                }
+
                 Section(header: Text("Backup")) {
                     Button {
                         showingExportScopeDialog = true
@@ -313,4 +353,3 @@ struct ShareSheet: UIViewControllerRepresentable {
 #Preview {
     SettingsView()
 }
-
