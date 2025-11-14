@@ -33,110 +33,127 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Aspetto")) {
-                    Toggle("Segui tema del device", isOn: $theme.followSystem)
-                    Picker("Tema", selection: Binding(get: { theme.selectedScheme }, set: { theme.selectedScheme = $0 })) {
-                        Text("Chiaro").tag(AppColorScheme.light)
-                        Text("Scuro").tag(AppColorScheme.dark)
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(theme.followSystem)
-                }
+            TabView {
+                // Generali Tab
+                Form {
 
-                Section(header: Text("Notifiche"), footer: Text("Le notifiche sono locali e si ripetono ogni giorno all'orario selezionato.")) {
-                    Toggle("Abilita notifiche giornaliere", isOn: $notificationsEnabled)
-                        .onChange(of: notificationsEnabled) { newValue in
-                            if newValue {
-                                Task {
-                                    let granted = (try? await NotificationManager.shared.requestAuthorization()) ?? false
-                                    if granted {
-                                        NotificationManager.shared.refreshScheduleFromStoredPreferences()
-                                    } else {
-                                        notificationsEnabled = false
-                                    }
-                                }
-                            } else {
-                                NotificationManager.shared.cancelAllManagedNotifications()
-                            }
-                        }
-
-                    if notificationsEnabled {
-                        DatePicker("Orario", selection: Binding(get: {
-                            var comps = DateComponents()
-                            comps.hour = notificationHour
-                            comps.minute = notificationMinute
-                            return Calendar.current.date(from: comps) ?? Date()
-                        }, set: { newDate in
-                            let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
-                            notificationHour = comps.hour ?? 9
-                            notificationMinute = comps.minute ?? 0
-                            NotificationManager.shared.refreshScheduleFromStoredPreferences()
-                        }), displayedComponents: .hourAndMinute)
-
-                        Toggle("Promemoria foto", isOn: $notifyPhoto)
-                            .onChange(of: notifyPhoto) { _ in
-                                NotificationManager.shared.refreshScheduleFromStoredPreferences()
-                            }
-
-                        Toggle("Promemoria irrigazione", isOn: $notifyWater)
-                            .onChange(of: notifyWater) { _ in
-                                NotificationManager.shared.refreshScheduleFromStoredPreferences()
-                            }
-                    }
-                }
-                
-                Section(header: Text("Giorno personalizzato"), footer: Text("Definisci a che ora inizia il nuovo giorno per i controlli di foto e irrigazione. Utile se fotografi/annaffi tardi la sera.")) {
-                    // Picker for cutoff time (hour and minute)
-                    DatePicker("Inizio nuovo giorno", selection: Binding(get: {
-                        let minutes = customDayCutoffMinutes
-                        let h = minutes / 60
-                        let m = minutes % 60
-                        var comps = DateComponents()
-                        comps.hour = h
-                        comps.minute = m
-                        return Calendar.current.date(from: comps) ?? Date()
-                    }, set: { newDate in
-                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
-                        let h = comps.hour ?? 0
-                        let m = comps.minute ?? 0
-                        customDayCutoffMinutes = h * 60 + m
-                    }), displayedComponents: .hourAndMinute)
-
-                    // Info line showing chosen time
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
-                        Text({ () -> String in
+                    Section(header: Text("Giorno personalizzato"), footer: Text("Definisci a che ora inizia il nuovo giorno per i controlli di foto e irrigazione. Utile se fotografi/annaffi tardi la sera.")) {
+                        DatePicker("Inizio nuovo giorno", selection: Binding(get: {
                             let minutes = customDayCutoffMinutes
                             let h = minutes / 60
                             let m = minutes % 60
                             var comps = DateComponents()
                             comps.hour = h
                             comps.minute = m
-                            let date = Calendar.current.date(from: comps) ?? Date()
-                            let df = DateFormatter()
-                            df.timeStyle = .short
-                            df.dateStyle = .none
-                            return "Il giorno cambia alle \(df.string(from: date))"
-                        }())
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                            return Calendar.current.date(from: comps) ?? Date()
+                        }, set: { newDate in
+                            let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                            let h = comps.hour ?? 0
+                            let m = comps.minute ?? 0
+                            customDayCutoffMinutes = h * 60 + m
+                        }), displayedComponents: .hourAndMinute)
+
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.secondary)
+                            Text({ () -> String in
+                                let minutes = customDayCutoffMinutes
+                                let h = minutes / 60
+                                let m = minutes % 60
+                                var comps = DateComponents()
+                                comps.hour = h
+                                comps.minute = m
+                                let date = Calendar.current.date(from: comps) ?? Date()
+                                let df = DateFormatter()
+                                df.timeStyle = .short
+                                df.dateStyle = .none
+                                return "Il giorno cambia alle \(df.string(from: date))"
+                            }())
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        }
                     }
                 }
+                .tabItem {
+                    Label("Generali", systemImage: "gearshape")
+                }
 
-                Section(header: Text("Backup")) {
-                    Button {
-                        showingExportScopeDialog = true
-                    } label: {
-                        Label("Esporta backup", systemImage: "square.and.arrow.up")
+                // Notifiche Tab
+                Form {
+                    Section(header: Text("Notifiche"), footer: Text("Le notifiche sono locali e si ripetono ogni giorno all'orario selezionato.")) {
+                        Toggle("Abilita notifiche giornaliere", isOn: $notificationsEnabled)
+                            .onChange(of: notificationsEnabled) { newValue in
+                                if newValue {
+                                    Task {
+                                        let granted = (try? await NotificationManager.shared.requestAuthorization()) ?? false
+                                        if granted {
+                                            NotificationManager.shared.refreshScheduleFromStoredPreferences()
+                                        } else {
+                                            notificationsEnabled = false
+                                        }
+                                    }
+                                } else {
+                                    NotificationManager.shared.cancelAllManagedNotifications()
+                                }
+                            }
+
+                        if notificationsEnabled {
+                            DatePicker("Orario", selection: Binding(get: {
+                                var comps = DateComponents()
+                                comps.hour = notificationHour
+                                comps.minute = notificationMinute
+                                return Calendar.current.date(from: comps) ?? Date()
+                            }, set: { newDate in
+                                let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                                notificationHour = comps.hour ?? 9
+                                notificationMinute = comps.minute ?? 0
+                                NotificationManager.shared.refreshScheduleFromStoredPreferences()
+                            }), displayedComponents: .hourAndMinute)
+
+                            Toggle("Promemoria foto", isOn: $notifyPhoto)
+                                .onChange(of: notifyPhoto) { _ in
+                                    NotificationManager.shared.refreshScheduleFromStoredPreferences()
+                                }
+
+                            Toggle("Promemoria irrigazione", isOn: $notifyWater)
+                                .onChange(of: notifyWater) { _ in
+                                    NotificationManager.shared.refreshScheduleFromStoredPreferences()
+                                }
+                        }
                     }
-                    
-                    Button {
-                        showingImporter = true
-                    } label: {
-                        Label("Importa backup", systemImage: "square.and.arrow.down")
+                }
+                .tabItem {
+                    Label("Notifiche", systemImage: "bell")
+                }
+
+                // Altro Tab
+                Form {
+                    Section(header: Text("Aspetto")) {
+                        Toggle("Segui tema del device", isOn: $theme.followSystem)
+                        Picker("Tema", selection: Binding(get: { theme.selectedScheme }, set: { theme.selectedScheme = $0 })) {
+                            Text("Chiaro").tag(AppColorScheme.light)
+                            Text("Scuro").tag(AppColorScheme.dark)
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(theme.followSystem)
                     }
+
+                    Section(header: Text("Backup")) {
+                        Button {
+                            showingExportScopeDialog = true
+                        } label: {
+                            Label("Esporta backup", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button {
+                            showingImporter = true
+                        } label: {
+                            Label("Importa backup", systemImage: "square.and.arrow.down")
+                        }
+                    }
+                }
+                .tabItem {
+                    Label("Altro", systemImage: "ellipsis.circle")
                 }
             }
             .navigationTitle("Impostazioni")

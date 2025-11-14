@@ -1,12 +1,22 @@
 import UIKit
+import ImageIO
+import MobileCoreServices
+import UniformTypeIdentifiers
 
 public enum ImageStorage {
-    // Salva l'immagine aggiungendo sempre un watermark con data/ora.
-    // Se la data non è fornita, usa la data corrente.
-    public static func saveImage(_ image: UIImage, date: Date? = nil) throws -> String {
-        let filename = "plantphoto_\(UUID().uuidString).jpg"
-        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+    public enum Format {
+        case heic(quality: CGFloat)
+        case jpeg(quality: CGFloat)
+    }
 
+    public static var defaultFormat: Format = .heic(quality: 0.8)
+
+    private enum SaveError: Error {
+        case encodingFailed
+        case heicNotSupported
+    }
+
+    public static func saveImage(_ image: UIImage, date: Date? = nil) throws -> String {
         // Applica watermark sempre
         let watermarkDate = date ?? Date()
         let formatter = DateFormatter()
@@ -16,11 +26,64 @@ public enum ImageStorage {
 
         let watermarked = image.addingWatermark(text: watermarkText)
 
-        guard let data = watermarked.jpegData(compressionQuality: 0.9) else {
-            throw NSError(domain: "ImageStorage", code: 1, userInfo: [NSLocalizedDescriptionKey: "Impossibile creare i dati JPEG."])
+        let uuid = UUID().uuidString
+
+        switch defaultFormat {
+        case .heic(let quality):
+            let filename = "plantphoto_\(uuid).heic"
+            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+            do {
+                try save(image: watermarked, to: url, format: .heic(quality: quality))
+                return filename
+            } catch {
+                // Fallback to jpeg with same quality
+                let fallbackFilename = "plantphoto_\(uuid).jpg"
+                let fallbackUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(fallbackFilename)
+                try save(image: watermarked, to: fallbackUrl, format: .jpeg(quality: quality))
+                return fallbackFilename
+            }
+        case .jpeg(let quality):
+            let filename = "plantphoto_\(uuid).jpg"
+            let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+            try save(image: watermarked, to: url, format: .jpeg(quality: quality))
+            return filename
         }
-        try data.write(to: url)
-        return filename
+    }
+
+    private static func save(image: UIImage, to url: URL, format: Format) throws {
+        switch format {
+        case .jpeg(let quality):
+            guard let data = image.jpegData(compressionQuality: quality) else {
+                throw SaveError.encodingFailed
+            }
+            try data.write(to: url)
+        case .heic(let quality):
+            try saveHEIC(image, to: url, quality: quality)
+        }
+    }
+
+    private static func saveHEIC(_ image: UIImage, to url: URL, quality: CGFloat) throws {
+        guard let cgImage = image.cgImage else {
+            throw SaveError.encodingFailed
+        }
+
+        let heicUTI: CFString = (UTType.heic.identifier as CFString)
+        let destination = CGImageDestinationCreateWithURL(url as CFURL, heicUTI, 1, nil)
+            ?? CGImageDestinationCreateWithURL(url as CFURL, "public.heic" as CFString, 1, nil)
+
+        guard let dest = destination else {
+            throw SaveError.heicNotSupported
+        }
+
+        let options: CFDictionary = [
+            kCGImageDestinationLossyCompressionQuality: quality
+        ] as CFDictionary
+
+        CGImageDestinationAddImage(dest, cgImage, options)
+
+        if !CGImageDestinationFinalize(dest) {
+            throw SaveError.encodingFailed
+        }
     }
 
     public static func loadImage(_ filename: String) -> UIImage? {

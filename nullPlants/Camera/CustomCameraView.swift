@@ -19,6 +19,7 @@ struct CustomCameraView: View {
 
     @State private var isPresentingPhoto = false
     @StateObject private var camera = CameraModel()
+    @State private var overlayOpacity: Double = 0.3
 
     var body: some View {
         ZStack {
@@ -37,7 +38,7 @@ struct CustomCameraView: View {
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: geo.size.width, height: geo.size.width * 4.0/3.0)
-                                .opacity(0.3)
+                                .opacity(overlayOpacity)
                                 .clipped()
                         }
                     }
@@ -54,7 +55,24 @@ struct CustomCameraView: View {
                 LinearGradient(colors: [Color.black.opacity(0.35), Color.clear], startPoint: .top, endPoint: .bottom)
                     .frame(height: 120)
                     .overlay(
-                        HStack {
+                        HStack(spacing: 12) {
+                            if showOverlay {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "circle.lefthalf.filled")
+                                        .foregroundColor(.white.opacity(0.9))
+                                    Slider(value: $overlayOpacity, in: 0...1)
+                                        .tint(.white)
+                                        .frame(maxWidth: 220)
+                                    Image(systemName: "circle.righthalf.filled")
+                                        .foregroundColor(.white.opacity(0.9))
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.black.opacity(0.45))
+                                .clipShape(Capsule())
+                                .accessibilityLabel("Opacità overlay")
+                                .accessibilityValue(Text(String(format: "%.0f%%", overlayOpacity * 100)))
+                            }
                             Spacer()
                             Button(action: { showOverlay.toggle() }) {
                                 Image(systemName: showOverlay ? "eye.slash" : "eye")
@@ -64,7 +82,7 @@ struct CustomCameraView: View {
                                     .background(Color.black.opacity(0.5))
                                     .clipShape(Circle())
                             }
-                            .accessibilityLabel("Toggle overlay")
+                            .accessibilityLabel(showOverlay ? "Nascondi overlay" : "Mostra overlay")
                             .padding(.trailing, 16)
                         }
                     )
