@@ -12,20 +12,21 @@ struct PlantDetailView: View {
     @State private var waterLitersText: String = ""
     @State private var showingWaterLogSheet = false
     @State private var showingPhotoGallery = false
-    @State private var selectedPhotoFilename: String? = nil
-    @State private var selectedUIImage: UIImage? = nil
     @State private var showingPhotoFullScreen = false
-    @State private var showingShareSheet = false
     @State private var showingDeletePhotoAlert = false
     @State private var photoToDeleteFilename: String? = nil
 
     @State private var showingDeleteWaterAlert = false
     @State private var pendingWaterDeleteDate: Date? = nil
-    
+
     @State private var isEditing = false
     @State private var editedName: String = ""
     @State private var editedType: String = ""
     @State private var editedDatePlanted: Date = Date()
+    
+    @State private var selectedPhotoIndex: Int? = nil
+    @State private var shareImage: UIImage? = nil
+    @State private var isShareSheetPresented: Bool = false
     
     private var sortedWaterings: [WateringEvent] {
         plant.wateringLog.sorted { $0.date > $1.date }
@@ -66,9 +67,11 @@ struct PlantDetailView: View {
                         .clipped()
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            selectedPhotoFilename = latest.imageFilename
-                            selectedUIImage = heroImage
-                            showingPhotoFullScreen = true
+                            let sorted = plant.photoLog.sorted { $0.date > $1.date }
+                            if let idx = sorted.firstIndex(where: { $0.imageFilename == latest.imageFilename }) {
+                                selectedPhotoIndex = idx
+                                showingPhotoFullScreen = true
+                            }
                         }
 
                     // Gradient overlay for text legibility
@@ -203,9 +206,11 @@ struct PlantDetailView: View {
                                     filename: { $0.imageFilename },
                                     date: { $0.date },
                                     onSelect: { photo in
-                                        selectedPhotoFilename = photo.imageFilename
-                                        selectedUIImage = ImageStorage.loadImage(photo.imageFilename)
-                                        showingPhotoFullScreen = true
+                                        let sorted = plant.photoLog.sorted { $0.date > $1.date }
+                                        if let idx = sorted.firstIndex(where: { $0.imageFilename == photo.imageFilename }) {
+                                            selectedPhotoIndex = idx
+                                            showingPhotoFullScreen = true
+                                        }
                                     },
                                     onClose: { /* no-op in push navigation */ }
                                 )
@@ -397,6 +402,13 @@ struct PlantDetailView: View {
         .sheet(isPresented: $showingPhotoFullScreen) {
             fullScreenContent()
         }
+        .sheet(isPresented: $isShareSheetPresented, onDismiss: { shareImage = nil }) {
+            if let img = shareImage {
+                ActivityView(activityItems: [img])
+            } else {
+                EmptyView()
+            }
+        }
         .alert("Eliminare questa foto?", isPresented: $showingDeletePhotoAlert) {
             Button("Elimina", role: .destructive) {
                 if let filename = photoToDeleteFilename {
@@ -418,10 +430,10 @@ struct PlantDetailView: View {
             store.updatePlant(plant)
         }
         .onChange(of: plant.photoLog) { _ in
-            // If the selected photo was removed or not found, ensure the cover can recover
-            if let sel = selectedPhotoFilename, !plant.photoLog.contains(where: { $0.imageFilename == sel }) {
+            let sorted = plant.photoLog.sorted { $0.date > $1.date }
+            if let idx = selectedPhotoIndex, !(0..<sorted.count).contains(idx) {
                 showingPhotoFullScreen = false
-                selectedPhotoFilename = nil
+                selectedPhotoIndex = nil
             }
         }
         .toolbar {
@@ -451,32 +463,16 @@ struct PlantDetailView: View {
     
     @ViewBuilder
     private func fullScreenContent() -> some View {
-        let selectedDate = selectedPhotoFilename.flatMap { name in plant.photoLog.first { $0.imageFilename == name }?.date }
-        if selectedPhotoFilename != nil || selectedUIImage != nil {
-            FullScreenPhotoView(
-                filename: selectedPhotoFilename,
-                initialImage: selectedUIImage,
-                date: selectedDate,
-                onShare: { _ in
-                    if let img = selectedUIImage { showingShareSheet = true }
-                }
-            )
-            .sheet(isPresented: $showingShareSheet) {
-                if let img = selectedUIImage {
-                    ActivityView(activityItems: [img])
-                }
+        let sorted = plant.photoLog.sorted { $0.date > $1.date }
+        let items = sorted.map { FullScreenPhotoItem(filename: $0.imageFilename, date: $0.date) }
+        FullScreenPhotoView(
+            items: items,
+            initialIndex: max(0, min(selectedPhotoIndex ?? 0, items.count - 1)),
+            onShare: { image in
+                shareImage = image
+                isShareSheetPresented = true
             }
-        } else {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                VStack(spacing: 12) {
-                    Text("Immagine non disponibile").foregroundColor(.white)
-                    Button("Chiudi") { showingPhotoFullScreen = false }
-                        .padding(.top, 8)
-                }
-                .padding()
-            }
-        }
+        )
     }
     
     @ViewBuilder
@@ -639,4 +635,3 @@ struct InlineCameraView: UIViewControllerRepresentable {
     let plant = Plant(name: "Basilico", type: "Aromatiche", datePlanted: Date(), wateringLog: [], photoLog: [])
     PlantDetailView(plant: .constant(plant), store: store)
 }
-

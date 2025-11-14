@@ -2,6 +2,7 @@ import SwiftUI
 
 /// A generic photo gallery view displaying photo thumbnails in a grid.
 /// Provide closures to extract filename and date from your item type.
+/// Tip: When integrating with a fullscreen pager, map the selected item to its index in your sorted array.
 struct PhotoGalleryView<Item: Identifiable>: View {
     let photos: [Item]
     let filename: (Item) -> String
