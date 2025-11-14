@@ -46,10 +46,7 @@ struct PhotoGalleryView<Item: Identifiable>: View {
                         GeometryReader { geo in
                             let side = geo.size.width
                             Button(action: {
-                                onClose()
-                                DispatchQueue.main.async {
-                                    onSelect(photo)
-                                }
+                                onSelect(photo)
                             }) {
                                 ZStack(alignment: .bottomLeading) {
                                     ThumbnailView(imageFilename: filename(photo))
@@ -80,11 +77,6 @@ struct PhotoGalleryView<Item: Identifiable>: View {
                 .padding()
             }
             .navigationTitle("Photos")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { onClose() }
-                }
-            }
         }
         .confirmationDialog(
             "Eliminare questa foto?",

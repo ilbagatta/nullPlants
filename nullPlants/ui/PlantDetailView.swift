@@ -197,8 +197,19 @@ struct PlantDetailView: View {
                                 .contentShape(Rectangle())
                             }
 
-                            Button {
-                                showingPhotoGallery = true
+                            NavigationLink {
+                                PhotoGalleryView(
+                                    photos: plant.photoLog,
+                                    filename: { $0.imageFilename },
+                                    date: { $0.date },
+                                    onSelect: { photo in
+                                        selectedPhotoFilename = photo.imageFilename
+                                        selectedUIImage = ImageStorage.loadImage(photo.imageFilename)
+                                        showingPhotoFullScreen = true
+                                    },
+                                    onClose: { /* no-op in push navigation */ }
+                                )
+                                .navigationTitle("Photos")
                             } label: {
                                 Image(systemName: "square.grid.3x3.fill")
                                     .font(.system(size: 18, weight: .semibold))
@@ -383,22 +394,7 @@ struct PlantDetailView: View {
         .sheet(isPresented: $showingTimelapse) {
             timelapseSheet()
         }
-        .sheet(isPresented: $showingPhotoGallery) {
-            PhotoGalleryView(
-                photos: plant.photoLog,
-                filename: { $0.imageFilename },
-                date: { $0.date },
-                onSelect: { photo in
-                    selectedPhotoFilename = photo.imageFilename
-                    selectedUIImage = ImageStorage.loadImage(photo.imageFilename)
-                    showingPhotoFullScreen = true
-                },
-                onClose: {
-                    showingPhotoGallery = false
-                }
-            )
-        }
-        .fullScreenCover(isPresented: $showingPhotoFullScreen) {
+        .sheet(isPresented: $showingPhotoFullScreen) {
             fullScreenContent()
         }
         .alert("Eliminare questa foto?", isPresented: $showingDeletePhotoAlert) {
