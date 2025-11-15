@@ -6,10 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		51D5DCD02EC7EC1F00B588F7 /* SinglePhotoZoomableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D5DCCF2EC7EC1F00B588F7 /* SinglePhotoZoomableView.swift */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXContainerItemProxy section */
 		5139675B2EA51A570085FBB0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -31,7 +27,6 @@
 		5139674D2EA51A550085FBB0 /* nullPlants.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nullPlants.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5139675A2EA51A570085FBB0 /* nullPlantsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nullPlantsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		513967642EA51A570085FBB0 /* nullPlantsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nullPlantsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		51D5DCCF2EC7EC1F00B588F7 /* SinglePhotoZoomableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SinglePhotoZoomableView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -97,7 +92,6 @@
 				5139675D2EA51A570085FBB0 /* nullPlantsTests */,
 				513967672EA51A570085FBB0 /* nullPlantsUITests */,
 				5139674E2EA51A550085FBB0 /* Products */,
-				51D5DCCF2EC7EC1F00B588F7 /* SinglePhotoZoomableView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -256,7 +250,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				51D5DCD02EC7EC1F00B588F7 /* SinglePhotoZoomableView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
