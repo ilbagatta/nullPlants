@@ -395,8 +395,8 @@ struct NotificheSettingsView: View {
             SettingsSection(title: "Notifiche") {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Abilita notifiche giornaliere", isOn: $notificationsEnabled)
-                        .onChange(of: notificationsEnabled) { newValue in
-                            if newValue {
+                        .onChange(of: notificationsEnabled) {
+                            if notificationsEnabled {
                                 Task {
                                     let granted = (try? await NotificationManager.shared.requestAuthorization()) ?? false
                                     if granted {
@@ -424,12 +424,12 @@ struct NotificheSettingsView: View {
                         }), displayedComponents: .hourAndMinute)
 
                         Toggle("Promemoria foto", isOn: $notifyPhoto)
-                            .onChange(of: notifyPhoto) { _ in
+                            .onChange(of: notifyPhoto) {
                                 NotificationManager.shared.refreshScheduleFromStoredPreferences()
                             }
 
                         Toggle("Promemoria irrigazione", isOn: $notifyWater)
-                            .onChange(of: notifyWater) { _ in
+                            .onChange(of: notifyWater) {
                                 NotificationManager.shared.refreshScheduleFromStoredPreferences()
                             }
                     }

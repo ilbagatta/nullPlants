@@ -31,67 +31,7 @@ struct PlantDetailView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Hero photo: latest plant photo
-            if let latest = PlantViewHelper.latestPhoto(for: plant),
-               let heroImage = ImageStorage.loadImage(latest.imageFilename) {
-                ZStack(alignment: .bottomLeading) {
-                    Image(uiImage: heroImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 220)
-                        .clipped()
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if let idx = PlantViewHelper.indexOfPhoto(filename: latest.imageFilename, in: plant) {
-                                selectedPhotoIndex = idx
-                                showingPhotoFullScreen = true
-                            }
-                        }
-
-                    // Gradient overlay for text legibility
-                    LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
-                        .frame(height: 80)
-                        .frame(maxWidth: .infinity, alignment: .bottom)
-                        .allowsHitTesting(false)
-
-                    // Caption with date
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(latest.date.formatted(date: .abbreviated, time: .omitted))
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding([.leading, .bottom], 12)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal)
-            } else {
-                ZStack {
-                    // Placeholder background
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.thinMaterial)
-                        .frame(height: 220)
-
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text("Scatta la prima foto")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                    }
-                    .padding()
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    showingPhoto = true
-                }
-                .padding(.horizontal)
-            }
-
+            // 1) Top textual section (non-editing or editing)
             if !isEditing {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(plant.name)
@@ -113,8 +53,7 @@ struct PlantDetailView: View {
                     .font(.subheadline)
                 }
                 .padding([.horizontal, .top])
-            }
-            else {
+            } else {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Modifica pianta")
                         .font(.headline)
@@ -145,11 +84,59 @@ struct PlantDetailView: View {
                 .padding([.horizontal, .top])
             }
 
+            // 2) Center the photo vertically in the remaining space
+            Spacer(minLength: 0)
+
+            GeometryReader { proxy in
+                Group {
+                    if let latest = PlantViewHelper.latestPhoto(for: plant),
+                       let heroImage = ImageStorage.loadImage(latest.imageFilename) {
+                        VStack {
+                            Image(uiImage: heroImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if let idx = PlantViewHelper.indexOfPhoto(filename: latest.imageFilename, in: plant) {
+                                        selectedPhotoIndex = idx
+                                        showingPhotoFullScreen = true
+                                    }
+                                }
+                        }
+                        .padding(24)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.clear, lineWidth: 1)
+                        )
+                        .padding(.horizontal)
+                    } else {
+                        VStack(spacing: 8) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text("Scatta la prima foto")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(24)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.clear, lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { showingPhoto = true }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            // 3) Bottom actions (unchanged)
             VStack(alignment: .leading, spacing: 16) {
                 if !isEditing {
-                    // Removed HStack with "Azioni" label and spacer
-                    
-                    // Azioni principali (modern style)
                     VStack(spacing: 12) {
                         HStack(spacing: 12) {
                             Button {
@@ -198,7 +185,7 @@ struct PlantDetailView: View {
                                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }
                             .accessibilityLabel("Log foto")
-                            
+
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 showingTimelapse = true
@@ -256,37 +243,9 @@ struct PlantDetailView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 4)
-
-                    // Removed Link secondari (card style) with photo gallery and watering log buttons
-                    
                 }
             }
             .padding(.vertical, 12)
-
-            Spacer(minLength: 0)
-
-            /*
-            // Bottom Timelapse button (floating style)
-            VStack(spacing: 8) {
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    showingTimelapse = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "film")
-                        Text("Timelapse").fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(.regularMaterial)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.purple.opacity(0.25), lineWidth: 1))
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            .background(.clear)
-            */
         }
         .navigationTitle(isEditing ? "Modifica" : plant.name)
         .sheet(isPresented: $showingPhoto) {
@@ -390,7 +349,7 @@ struct PlantDetailView: View {
         .onDisappear {
             store.updatePlant(plant)
         }
-        .onChange(of: plant.photoLog) { _ in
+        .onChange(of: plant.photoLog) {
             let sorted = PlantViewHelper.sortedPhotos(for: plant)
             if let idx = selectedPhotoIndex, !(0..<sorted.count).contains(idx) {
                 showingPhotoFullScreen = false

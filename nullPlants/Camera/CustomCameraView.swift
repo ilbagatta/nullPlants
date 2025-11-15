@@ -187,8 +187,13 @@ class CameraModel: ObservableObject {
             }
             self.session.addOutput(self.output)
             
-            if self.output.isHighResolutionCaptureEnabled == false {
-                self.output.isHighResolutionCaptureEnabled = true
+            // Configure output photo dimensions (use legacy high-res flag only on < iOS 16)
+            if #available(iOS 16.0, *) {
+                // On iOS 16+, let the system choose optimal photo dimensions. No explicit configuration needed here.
+            } else {
+                if self.output.isHighResolutionCaptureEnabled == false {
+                    self.output.isHighResolutionCaptureEnabled = true
+                }
             }
 
             self.session.commitConfiguration()
@@ -208,8 +213,12 @@ class CameraModel: ObservableObject {
     func takePhoto(completion: @escaping (UIImage?) -> Void) {
         print("Capturing photo...")
         let settings = AVCapturePhotoSettings()
-        if self.output.isHighResolutionCaptureEnabled {
-            settings.isHighResolutionPhotoEnabled = true
+        if #available(iOS 16.0, *) {
+            // Use default max dimensions chosen by the system.
+        } else {
+            if self.output.isHighResolutionCaptureEnabled {
+                settings.isHighResolutionPhotoEnabled = true
+            }
         }
 
         let delegate = CameraPhotoDelegate { [weak self] image in
@@ -249,8 +258,17 @@ struct CameraPreview: UIViewRepresentable {
         let view = PreviewView()
         let layer = AVCaptureVideoPreviewLayer(session: session)
         layer.videoGravity = .resizeAspectFill
-        if let connection = layer.connection, connection.isVideoOrientationSupported {
-            connection.videoOrientation = .portrait
+        if let connection = layer.connection {
+            if #available(iOS 17.0, *) {
+                let angle: CGFloat = 0 // portrait
+                if connection.isVideoRotationAngleSupported(angle) {
+                    connection.videoRotationAngle = angle
+                }
+            } else {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+            }
         }
         view.previewLayer = layer
         view.clipsToBounds = true
@@ -259,8 +277,17 @@ struct CameraPreview: UIViewRepresentable {
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
         uiView.previewLayer?.session = session
-        if let connection = uiView.previewLayer?.connection, connection.isVideoOrientationSupported {
-            connection.videoOrientation = .portrait
+        if let connection = uiView.previewLayer?.connection {
+            if #available(iOS 17.0, *) {
+                let angle: CGFloat = 0 // portrait
+                if connection.isVideoRotationAngleSupported(angle) {
+                    connection.videoRotationAngle = angle
+                }
+            } else {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+            }
         }
         uiView.setNeedsLayout()
         uiView.layoutIfNeeded()

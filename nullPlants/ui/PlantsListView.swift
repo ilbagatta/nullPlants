@@ -4,6 +4,7 @@ struct PlantsListView: View {
     // Store & Theme
     @StateObject private var store = PlantStore()
     @EnvironmentObject private var theme: ThemeSettings
+    @Environment(\.colorScheme) private var systemScheme
 
     // UI State
     @State private var showingAdd = false
@@ -109,7 +110,6 @@ struct PlantsListView: View {
     // MARK: - Custom day boundary helper
     private func isSameCustomDay(date1: Date, date2: Date, cutoffMinutes: Int) -> Bool {
         let calendar = Calendar.current
-        let tz = TimeZone.current
         func shifted(_ d: Date) -> Date {
             let cutoffH = cutoffMinutes / 60
             let cutoffM = cutoffMinutes % 60
@@ -121,110 +121,116 @@ struct PlantsListView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                // Fase lunare flat
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: moonSymbolName(for: currentPhaseName))
-                        .symbolRenderingMode(.hierarchical)
-                        .font(.system(size: 28, weight: .regular))
-                        .foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(lunarPhaseLine)
-                            .font(.callout)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
-                        if let countdown = lunarCountdownLine {
-                            Text(countdown)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let customLine = customDayChangeLine {
-                            Text(customLine)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+        ZStack {
+            // Background gradient (top -> bottom), respects followSystem/theme settings
+            theme.appBackgroundGradient(system: systemScheme)
+                .ignoresSafeArea()
 
-                // Lista piante flat
-                Section {
-                    ForEach($store.plants) { $plant in
-                        NavigationLink(destination: PlantDetailView(plant: $plant, store: store)) {
-                            HStack(alignment: .center, spacing: 12) {
-                                let latestPhoto = plant.photoLog.sorted(by: { $0.date > $1.date }).first
-                                Group {
-                                    if let latest = latestPhoto, let uiImage = ImageStorage.loadImage(latest.imageFilename) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                    } else {
-                                        ZStack {
-                                            Color.gray.opacity(0.2)
-                                            Image(systemName: "leaf.fill").foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                                .frame(width: 44, height: 44)
-                                .clipShape(Circle())
-
-                                VStack(alignment: .leading) {
-                                    HStack(spacing: 6) {
-                                        Text(plant.name)
-                                        let cutoffMinutes = UserDefaults.standard.integer(forKey: "settings.customDayCutoffMinutes")
-                                        let cutoff = cutoffMinutes > 0 ? cutoffMinutes : 0
-                                        if !plant.wateringLog.contains(where: { isSameCustomDay(date1: $0.date, date2: Date(), cutoffMinutes: cutoff) }) {
-                                            Image(systemName: "drop.fill").foregroundStyle(.blue)
-                                        }
-                                        let hasPhotoToday = plant.photoLog.contains { isSameCustomDay(date1: $0.date, date2: Date(), cutoffMinutes: cutoff) }
-                                        if !hasPhotoToday {
-                                            Image(systemName: "camera.fill").foregroundStyle(.orange)
-                                        }
-                                    }
-                                    .font(.headline)
-                                    Text(plant.type)
-                                        .font(.subheadline)
-                                    Text("Età: \(formattedAge(from: plant.datePlanted))")
-                                        .font(.footnote)
-                                }
+            NavigationStack {
+                List {
+                    // Fase lunare flat
+                    HStack(alignment: .center, spacing: 12) {
+                        Image(systemName: moonSymbolName(for: currentPhaseName))
+                            .symbolRenderingMode(.hierarchical)
+                            .font(.system(size: 28, weight: .regular))
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(lunarPhaseLine)
+                                .font(.callout)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                            if let countdown = lunarCountdownLine {
+                                Text(countdown)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let customLine = customDayChangeLine {
+                                Text(customLine)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }
-                    .onDelete { indices in
-                        indices.map { store.plants[$0] }.forEach(store.deletePlant)
+
+                    // Lista piante flat
+                    Section {
+                        ForEach($store.plants) { $plant in
+                            NavigationLink(destination: PlantDetailView(plant: $plant, store: store)) {
+                                HStack(alignment: .center, spacing: 12) {
+                                    let latestPhoto = plant.photoLog.sorted(by: { $0.date > $1.date }).first
+                                    Group {
+                                        if let latest = latestPhoto, let uiImage = ImageStorage.loadImage(latest.imageFilename) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                        } else {
+                                            ZStack {
+                                                Color.gray.opacity(0.2)
+                                                Image(systemName: "leaf.fill").foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(Circle())
+
+                                    VStack(alignment: .leading) {
+                                        HStack(spacing: 6) {
+                                            Text(plant.name)
+                                            let cutoffMinutes = UserDefaults.standard.integer(forKey: "settings.customDayCutoffMinutes")
+                                            let cutoff = cutoffMinutes > 0 ? cutoffMinutes : 0
+                                            if !plant.wateringLog.contains(where: { isSameCustomDay(date1: $0.date, date2: Date(), cutoffMinutes: cutoff) }) {
+                                                Image(systemName: "drop.fill").foregroundStyle(.blue)
+                                            }
+                                            let hasPhotoToday = plant.photoLog.contains { isSameCustomDay(date1: $0.date, date2: Date(), cutoffMinutes: cutoff) }
+                                            if !hasPhotoToday {
+                                                Image(systemName: "camera.fill").foregroundStyle(.orange)
+                                            }
+                                        }
+                                        .font(.headline)
+                                        Text(plant.type)
+                                            .font(.subheadline)
+                                        Text("Età: \(formattedAge(from: plant.datePlanted))")
+                                            .font(.footnote)
+                                    }
+                                }
+                            }
+                        }
+                        .onDelete { indices in
+                            indices.map { store.plants[$0] }.forEach(store.deletePlant)
+                        }
+                    } header: {
+                        Text("Piante")
                     }
-                } header: {
-                    Text("Piante")
                 }
-            }
-            .listStyle(.plain)
-            .navigationTitle("Le tue piante")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                .listStyle(.plain)
+                .navigationTitle("Le tue piante")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Impostazioni")
                     }
-                    .accessibilityLabel("Impostazioni")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingAdd = true
-                    } label: {
-                        Image(systemName: "plus")
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            showingAdd = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("Aggiungi pianta")
                     }
-                    .accessibilityLabel("Aggiungi pianta")
                 }
-            }
-            .sheet(isPresented: $showingAdd) {
-                AddPlantView(store: store)
-            }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-                    .environmentObject(store)
-                    .environmentObject(theme)
+                .sheet(isPresented: $showingAdd) {
+                    AddPlantView(store: store)
+                }
+                .sheet(isPresented: $showingSettings) {
+                    SettingsView()
+                        .environmentObject(store)
+                        .environmentObject(theme)
+                }
             }
         }
         .task {
@@ -250,3 +256,4 @@ struct PlantsListView: View {
     PlantsListView()
         .environmentObject(ThemeSettings())
 }
+

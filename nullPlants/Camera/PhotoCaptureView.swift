@@ -57,9 +57,9 @@ struct PhotoCaptureView: View {
                 showCamera = true
             }
         }
-        .onChange(of: newImage) { image in
+        .onChange(of: newImage) {
             // When a new image is captured, save automatically
-            if let imageToSave = image {
+            if let imageToSave = newImage {
                 do {
                     let date = newImageDate ?? Date()
                     let filename = try ImageStorage.saveImage(imageToSave, date: date)

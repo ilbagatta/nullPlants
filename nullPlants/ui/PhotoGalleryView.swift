@@ -88,7 +88,7 @@ struct PhotoGalleryView<Item: Identifiable>: View {
                 if let item = pendingDeletion {
                     // Remove from disk using the provided filename extractor
                     let name = filename(item)
-                    _ = ImageStorage.deleteImage(name)
+                    ImageStorage.deleteImage(name)
 
                     // Remove from local list to update the grid immediately
                     if let idx = items.firstIndex(where: { $0.id == item.id }) {

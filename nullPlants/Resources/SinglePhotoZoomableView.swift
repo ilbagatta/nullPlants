@@ -105,8 +105,6 @@ public struct SinglePhotoZoomableView: View {
                                         guard effectiveScale > 1.01 else { return }
                                         let dx = value.translation.width
                                         let dy = value.translation.height
-                                        let horizontalDominant = abs(dx) > abs(dy) * 1.3
-                                        let verticalDominant = abs(dy) > abs(dx) * 1.3
                                         // Allow pan for both horizontal and vertical dominant gestures when zoomed
                                         let newOffset = CGSize(width: lastPan.width + dx, height: lastPan.height + dy)
                                         panOffset = clampedOffset(newOffset, image: image, container: geo.size, scale: steadyZoomScale * pinchZoomDelta)

@@ -57,4 +57,36 @@ final class ThemeSettings: ObservableObject {
         if followSystem { return nil }
         return selectedScheme.colorScheme
     }
+
+    // MARK: - App Background Gradient
+    /// Light mode colors: very light green to medium green
+    private var lightStart: Color { Color(red: 0.90, green: 0.98, blue: 0.90) } // very light green
+    private var lightEnd: Color { Color(red: 0.40, green: 0.80, blue: 0.50) }   // medium green
+
+    /// Dark mode colors: medium green to dark green
+    private var darkStart: Color { Color(red: 0.30, green: 0.65, blue: 0.45) }  // medium green
+    private var darkEnd: Color { Color(red: 0.05, green: 0.25, blue: 0.15) }    // dark green
+
+    /// Gradient that goes from top to bottom for the provided scheme
+    private func gradient(for scheme: AppColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: scheme == .light ? [lightStart, lightEnd] : [darkStart, darkEnd],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// Public helper to obtain the app background gradient considering followSystem and optional system scheme
+    func appBackgroundGradient(system systemScheme: ColorScheme?) -> LinearGradient {
+        if followSystem {
+            if let systemScheme {
+                return gradient(for: systemScheme == .light ? .light : .dark)
+            } else {
+                // Default to light if system scheme is unknown
+                return gradient(for: .light)
+            }
+        } else {
+            return gradient(for: selectedScheme)
+        }
+    }
 }

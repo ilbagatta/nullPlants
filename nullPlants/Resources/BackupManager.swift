@@ -211,7 +211,7 @@ struct BackupManager {
         for payload in manifest.plants {
             switch conflictPolicy {
             case .overwrite:
-                if let existing = existingPlant(withId: payload.id) {
+                if existingPlant(withId: payload.id) != nil {
                     // Replace entirely
                     let newPhotos = try copyPhotosAndBuildPhotoLog(
                         from: payload.photoLog,
