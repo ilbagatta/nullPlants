@@ -1,6 +1,7 @@
 // Dettaglio, log annaffiature e foto della pianta
 import SwiftUI
 import UIKit
+import Foundation
 
 struct PlantDetailView: View {
     @Binding var plant: Plant
@@ -28,35 +29,10 @@ struct PlantDetailView: View {
     @State private var shareImage: UIImage? = nil
     @State private var isShareSheetPresented: Bool = false
     
-    private var sortedWaterings: [WateringEvent] {
-        plant.wateringLog.sorted { $0.date > $1.date }
-    }
-    
-    // MARK: - Age formatting helper
-    private func formattedAge(from startDate: Date, to endDate: Date = Date()) -> String {
-        let cal = Calendar.current
-        let comps = cal.dateComponents([.year, .month, .weekOfYear, .day], from: startDate, to: endDate)
-        var parts: [String] = []
-        if let years = comps.year, years > 0 {
-            parts.append("\(years) \(years == 1 ? "anno" : "anni")")
-        }
-        if let months = comps.month, months > 0 {
-            parts.append("\(months) \(months == 1 ? "mese" : "mesi")")
-        }
-        if (comps.year ?? 0) == 0, (comps.month ?? 0) == 0, let weeks = comps.weekOfYear, weeks > 0 {
-            parts.append("\(weeks) \(weeks == 1 ? "settimana" : "settimane")")
-        }
-        if let days = comps.day, days > 0 {
-            parts.append("\(days) \(days == 1 ? "giorno" : "giorni")")
-        }
-        if parts.isEmpty { return "0 giorni" }
-        return parts.prefix(2).joined(separator: " e ")
-    }
-    
     var body: some View {
         VStack(spacing: 0) {
             // Hero photo: latest plant photo
-            if let latest = plant.photoLog.sorted(by: { $0.date > $1.date }).first,
+            if let latest = PlantViewHelper.latestPhoto(for: plant),
                let heroImage = ImageStorage.loadImage(latest.imageFilename) {
                 ZStack(alignment: .bottomLeading) {
                     Image(uiImage: heroImage)
@@ -67,8 +43,7 @@ struct PlantDetailView: View {
                         .clipped()
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            let sorted = plant.photoLog.sorted { $0.date > $1.date }
-                            if let idx = sorted.firstIndex(where: { $0.imageFilename == latest.imageFilename }) {
+                            if let idx = PlantViewHelper.indexOfPhoto(filename: latest.imageFilename, in: plant) {
                                 selectedPhotoIndex = idx
                                 showingPhotoFullScreen = true
                             }
@@ -127,7 +102,7 @@ struct PlantDetailView: View {
                         .foregroundStyle(.secondary)
                     Divider().opacity(0.15)
                     HStack(spacing: 12) {
-                        Label("Età: \(formattedAge(from: plant.datePlanted))", systemImage: "leaf.fill")
+                        Label("Età: \(PlantViewHelper.formattedAge(from: plant.datePlanted))", systemImage: "leaf.fill")
                             .labelStyle(.titleAndIcon)
                             .foregroundStyle(.secondary)
                         Spacer(minLength: 0)
@@ -240,7 +215,7 @@ struct PlantDetailView: View {
                         HStack(spacing: 12) {
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
+                                if !PlantViewHelper.hasWateringToday(plant) {
                                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                                         showingWaterInput = true
                                     }
@@ -264,8 +239,8 @@ struct PlantDetailView: View {
                                 )
                                 .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 3)
                             }
-                            .disabled(plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }))
-                            .opacity(plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) ? 0.5 : 1.0)
+                            .disabled(PlantViewHelper.hasWateringToday(plant))
+                            .opacity(PlantViewHelper.hasWateringToday(plant) ? 0.5 : 1.0)
 
                             Button {
                                 showingWaterLogSheet = true
@@ -321,25 +296,10 @@ struct PlantDetailView: View {
             WaterAmountInputSheet(
                 waterLitersText: $waterLitersText,
                 onConfirm: {
-                    let trimmed = waterLitersText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let liters: Double?
-                    if trimmed.isEmpty {
-                        liters = nil
-                    } else {
-                        let formatter = NumberFormatter()
-                        formatter.locale = Locale.current
-                        formatter.decimalSeparator = Locale.current.decimalSeparator
-                        if let number = formatter.number(from: trimmed) {
-                            liters = number.doubleValue
-                        } else if let val = Double(trimmed.replacingOccurrences(of: ",", with: ".")) {
-                            liters = val
-                        } else {
-                            liters = nil
-                        }
-                    }
+                    let liters = PlantViewHelper.parseLiters(from: waterLitersText)
 
                     // Prevent duplicate watering for today
-                    if !plant.wateringLog.contains(where: { Calendar.current.isDateInToday($0.date) }) {
+                    if !PlantViewHelper.hasWateringToday(plant) {
                         let entry = WateringEvent(date: Date(), liters: liters)
                         plant.wateringLog.append(entry)
                         // Keep log sorted newest first (optional)
@@ -358,7 +318,7 @@ struct PlantDetailView: View {
         .sheet(isPresented: $showingWaterLogSheet) {
             NavigationStack {
                 List {
-                    ForEach(sortedWaterings, id: \.date) { entry in
+                    ForEach(PlantViewHelper.sortedWaterings(for: plant), id: \.date) { entry in
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(entry.date.formatted(date: .abbreviated, time: .omitted))
@@ -373,6 +333,7 @@ struct PlantDetailView: View {
                         }
                     }
                     .onDelete { indexSet in
+                        let sortedWaterings = PlantViewHelper.sortedWaterings(for: plant)
                         let dates = indexSet.map { sortedWaterings[$0].date }
                         plant.wateringLog.removeAll { entry in dates.contains(entry.date) }
                         store.updatePlant(plant)
@@ -430,7 +391,7 @@ struct PlantDetailView: View {
             store.updatePlant(plant)
         }
         .onChange(of: plant.photoLog) { _ in
-            let sorted = plant.photoLog.sorted { $0.date > $1.date }
+            let sorted = PlantViewHelper.sortedPhotos(for: plant)
             if let idx = selectedPhotoIndex, !(0..<sorted.count).contains(idx) {
                 showingPhotoFullScreen = false
                 selectedPhotoIndex = nil
@@ -463,7 +424,7 @@ struct PlantDetailView: View {
     
     @ViewBuilder
     private func fullScreenContent() -> some View {
-        let sorted = plant.photoLog.sorted { $0.date > $1.date }
+        let sorted = PlantViewHelper.sortedPhotos(for: plant)
         let items = sorted.map { FullScreenPhotoItem(filename: $0.imageFilename, date: $0.date) }
         FullScreenPhotoView(
             items: items,
