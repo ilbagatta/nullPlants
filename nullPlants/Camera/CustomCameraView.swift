@@ -20,51 +20,22 @@ struct CustomCameraView: View {
     @State private var isPresentingPhoto = false
     @StateObject private var camera = CameraModel()
     @State private var overlayOpacity: Double = 0.3
+    @State private var showSystemNavBar: Bool = true
 
     var body: some View {
-        ZStack {
-            // Preview aligned to top (4:3)
-            VStack(spacing: 0) {
-                ZStack {
-                    GeometryReader { geo in
-                        CameraPreview(session: camera.session)
-                            .onAppear { camera.start() }
-                            .onDisappear { camera.stopSession() }
-                            .frame(width: geo.size.width, height: geo.size.width * 4.0/3.0)
-                            .clipped()
-
-                        if showOverlay, let prev = previousImage {
-                            Image(uiImage: prev)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: geo.size.width, height: geo.size.width * 4.0/3.0)
-                                .opacity(overlayOpacity)
-                                .clipped()
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .ignoresSafeArea(.container, edges: .top)
-
-                Spacer(minLength: 0)
-            }
-
-            // Elegant control overlays
-            VStack {
-                // Top bar with subtle gradient for readability
-                LinearGradient(colors: [Color.black.opacity(0.35), Color.clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 120)
-                    .overlay(
-                        HStack(spacing: 12) {
+        NavigationStack {
+            ZStack {
+                GeometryReader { proxy in
+                    VStack {
+                        Spacer(minLength: 0)
+                        VStack(spacing: 8) {
                             if showOverlay {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "circle.lefthalf.filled")
-                                        .foregroundColor(.white.opacity(0.9))
+                                    Image(systemName: "circle.lefthalf.filled").foregroundColor(.white.opacity(0.9))
                                     Slider(value: $overlayOpacity, in: 0...1)
                                         .tint(.white)
-                                        .frame(maxWidth: 220)
-                                    Image(systemName: "circle.righthalf.filled")
-                                        .foregroundColor(.white.opacity(0.9))
+                                        .frame(width: min(proxy.size.width - 48, 280))
+                                    Image(systemName: "circle.righthalf.filled").foregroundColor(.white.opacity(0.9))
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
@@ -73,24 +44,30 @@ struct CustomCameraView: View {
                                 .accessibilityLabel("Opacità overlay")
                                 .accessibilityValue(Text(String(format: "%.0f%%", overlayOpacity * 100)))
                             }
-                            Spacer()
-                            Button(action: { showOverlay.toggle() }) {
-                                Image(systemName: showOverlay ? "eye.slash" : "eye")
-                                    .font(.title2.weight(.semibold))
-                                    .foregroundColor(.white)
-                                    .padding(10)
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
+                            ZStack {
+                                let width = proxy.size.width
+                                let height = width * 4.0/3.0
+                                CameraPreview(session: camera.session)
+                                    .onAppear { camera.start() }
+                                    .onDisappear { camera.stopSession() }
+                                    .frame(width: width, height: height)
+                                    .clipped()
+
+                                if showOverlay, let prev = previousImage {
+                                    Image(uiImage: prev)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: width, height: height)
+                                        .opacity(overlayOpacity)
+                                        .clipped()
+                                }
                             }
-                            .accessibilityLabel(showOverlay ? "Nascondi overlay" : "Mostra overlay")
-                            .padding(.trailing, 16)
                         }
-                    )
-                    .padding(.top, 0)
-
-                Spacer()
-
-                // Bottom bar with gradient and shutter
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
                 LinearGradient(colors: [Color.clear, Color.black.opacity(0.45)], startPoint: .top, endPoint: .bottom)
                     .frame(height: 170)
                     .overlay(
@@ -119,9 +96,26 @@ struct CustomCameraView: View {
                             Spacer()
                         }
                     )
-                    .padding(.bottom, 0)
             }
-            .ignoresSafeArea(edges: [.top, .bottom])
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Fotocamera")
+                        .foregroundColor(.white)
+                        .font(.headline)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showOverlay.toggle()
+                    } label: {
+                        Image(systemName: showOverlay ? "eye.slash" : "eye")
+                    }
+                    .tint(.white)
+                    .accessibilityLabel(showOverlay ? "Nascondi overlay" : "Mostra overlay")
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.black.opacity(0.6), for: .navigationBar)
         }
     }
 }

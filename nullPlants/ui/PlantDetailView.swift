@@ -31,6 +31,13 @@ struct PlantDetailView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            NavigationLink(isActive: $showingPhoto) {
+                PhotoCaptureView(plant: $plant, store: store)
+            } label: {
+                EmptyView()
+            }
+            .hidden()
+
             // 1) Top textual section (non-editing or editing)
             if !isEditing {
                 VStack(alignment: .leading, spacing: 6) {
@@ -248,9 +255,12 @@ struct PlantDetailView: View {
             .padding(.vertical, 12)
         }
         .navigationTitle(isEditing ? "Modifica" : plant.name)
+        // Removed this sheet:
+        /*
         .sheet(isPresented: $showingPhoto) {
             PhotoCaptureView(plant: $plant, store: store)
         }
+        */
         .sheet(isPresented: $showingWaterInput) {
             WaterAmountInputSheet(
                 waterLitersText: $waterLitersText,
@@ -555,3 +565,4 @@ struct InlineCameraView: UIViewControllerRepresentable {
     let plant = Plant(name: "Basilico", type: "Aromatiche", datePlanted: Date(), wateringLog: [], photoLog: [])
     PlantDetailView(plant: .constant(plant), store: store)
 }
+
